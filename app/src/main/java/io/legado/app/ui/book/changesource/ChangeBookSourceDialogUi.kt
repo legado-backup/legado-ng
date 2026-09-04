@@ -206,7 +206,6 @@ internal fun ChangeBookSourceDialogContent(
                     ) {
                         itemsIndexed(
                             items = searchBooks,
-                            key = { _, item -> item.bookUrl },
                         ) { index, item ->
                             ChangeBookSourceResultRow(
                                 presentation = presentation,
