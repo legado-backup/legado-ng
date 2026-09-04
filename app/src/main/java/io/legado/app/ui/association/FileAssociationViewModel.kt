@@ -7,11 +7,14 @@ import io.legado.app.constant.AppLog
 import io.legado.app.constant.AppPattern
 import io.legado.app.constant.AppPattern.bookFileRegex
 import io.legado.app.data.entities.Book
+import io.legado.app.help.tts.TtsEngineStore
 import io.legado.app.model.localBook.LocalBook
 import io.legado.app.utils.*
+import java.util.Locale
 
 class FileAssociationViewModel(application: Application) : BaseAssociationViewModel(application) {
     val importBookLiveData = MutableLiveData<Uri>()
+    val importTtsEngineLiveData = MutableLiveData<Uri>()
     val onLineImportLive = MutableLiveData<Uri>()
     val openBookLiveData = MutableLiveData<Book>()
     val notSupportedLiveData = MutableLiveData<Pair<Uri, String>>()
@@ -43,9 +46,26 @@ class FileAssociationViewModel(application: Application) : BaseAssociationViewMo
     }
 
     private fun dispatch(fileDoc: FileDoc) {
+        val mimeType = runCatching {
+            context.contentResolver.getType(fileDoc.uri)
+        }.getOrNull()
+        if (isJavaScriptFileAssociation(fileDoc.name, mimeType)) {
+            val content = fileDoc.readText()
+            if (TtsEngineStore.supportsEngineImportText(content)) {
+                importTtsEngineLiveData.postValue(fileDoc.uri)
+            } else {
+                successLive.postValue("bookSource" to fileDoc.uri.toString())
+            }
+            return
+        }
         kotlin.runCatching {
             if (fileDoc.openInputStream().getOrNull().isJson()) {
-                importJson(fileDoc.uri)
+                val content = fileDoc.readText()
+                if (TtsEngineStore.supportsEngineImportText(content)) {
+                    importTtsEngineLiveData.postValue(fileDoc.uri)
+                } else {
+                    importJson(fileDoc.uri)
+                }
                 return
             }
         }.onFailure {
@@ -64,3 +84,22 @@ class FileAssociationViewModel(application: Application) : BaseAssociationViewMo
         openBookLiveData.postValue(book)
     }
 }
+
+internal fun isJavaScriptFileAssociation(fileName: String, mimeType: String?): Boolean {
+    if (fileName.endsWith(".js", ignoreCase = true)) return true
+    val normalizedMimeType = mimeType
+        ?.substringBefore(';')
+        ?.trim()
+        ?.lowercase(Locale.ROOT)
+        ?: return false
+    return normalizedMimeType in javaScriptMimeTypes
+}
+
+private val javaScriptMimeTypes = setOf(
+    "application/javascript",
+    "application/x-javascript",
+    "application/ecmascript",
+    "text/javascript",
+    "text/x-javascript",
+    "text/ecmascript",
+)

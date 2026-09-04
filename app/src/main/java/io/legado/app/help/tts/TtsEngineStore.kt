@@ -427,6 +427,13 @@ object TtsEngineStore {
         }
     }
 
+    internal fun supportsEngineImportText(text: String): Boolean {
+        val source = text.trim()
+        return source.isNotBlank() && runCatching {
+            parseImportEngineText(source)
+        }.isSuccess
+    }
+
     @Synchronized
     fun saveEngines(engines: List<TtsEngineSetting>) {
         appCtx.putPrefString(

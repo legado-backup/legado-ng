@@ -1,5 +1,6 @@
 package io.legado.app.ui.association
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.viewModels
@@ -15,6 +16,9 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.permission.Permissions
 import io.legado.app.lib.permission.PermissionsCompat
+import io.legado.app.ui.config.ConfigActivity
+import io.legado.app.ui.config.ConfigTag
+import io.legado.app.ui.config.TtsEngineConfigFragment
 import io.legado.app.utils.SelectDirectoryContract
 import io.legado.app.utils.FileUtils
 import io.legado.app.utils.buildMainHandler
@@ -63,6 +67,15 @@ class FileAssociationActivity :
         binding.rotateLoading.visible()
         viewModel.importBookLiveData.observe(this) { uri ->
             importBook(uri)
+        }
+        viewModel.importTtsEngineLiveData.observe(this) { uri ->
+            startActivity<ConfigActivity> {
+                putExtra("configTag", ConfigTag.TTS_ENGINE_CONFIG)
+                putExtra(TtsEngineConfigFragment.EXTRA_IMPORT_URI, uri.toString())
+                data = uri
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            finish()
         }
         viewModel.onLineImportLive.observe(this) {
             startActivity<OnLineImportActivity> {

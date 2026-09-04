@@ -1,11 +1,53 @@
 package io.legado.app.help.tts
 
+import io.legado.app.utils.GSON
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TtsEngineImportResolverTest {
+
+    @Test
+    fun externalImportRecognitionUsesTheSameParserAsManualImport() {
+        val ttsScript = """
+            // @name 外部引擎
+            // @uuid external_tts
+
+            function synthesize(text, voice, params, options, ctx) {
+                return {};
+            }
+        """.trimIndent()
+        val bookSourceScript = """
+            var config = {
+                bookSourceUrl: "https://example.com",
+                bookSourceName: "示例书源"
+            };
+            function search() {}
+            function getChapters() {}
+            function getContent() {}
+        """.trimIndent()
+
+        assertTrue(TtsEngineStore.supportsEngineImportText(ttsScript))
+        assertTrue(
+            TtsEngineStore.supportsEngineImportText(
+                GSON.toJson(
+                    engine(
+                        id = "external_json_tts",
+                        name = "外部 JSON 引擎",
+                        version = "1.0.0",
+                    )
+                )
+            )
+        )
+        assertFalse(TtsEngineStore.supportsEngineImportText(bookSourceScript))
+        assertFalse(TtsEngineStore.supportsEngineImportText("""
+            {
+                "bookSourceUrl": "https://example.com",
+                "bookSourceName": "示例书源"
+            }
+        """.trimIndent()))
+    }
 
     @Test
     fun askReportsExistingCustomScriptWithoutChangingItsIdentity() {

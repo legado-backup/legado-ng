@@ -68,6 +68,10 @@ import kotlin.math.roundToInt
 class TtsEngineConfigFragment : BaseFragment(0),
     ConfigBackHandler {
 
+    companion object {
+        const val EXTRA_IMPORT_URI = "ttsEngineImportUri"
+    }
+
     private enum class DetailTab { CONFIG, VOICES }
 
     private val configEntities = arrayListOf<ConfigField>()
@@ -265,6 +269,7 @@ class TtsEngineConfigFragment : BaseFragment(0),
         )
 
         refreshEngines()
+        importExternalTtsEngineIfRequested()
     }
 
     override fun onDestroyView() {
@@ -641,6 +646,15 @@ class TtsEngineConfigFragment : BaseFragment(0),
             result.onSuccess { importTtsEngineText(it) }
                 .onFailure { requireContext().toastOnUi(it.localizedMessage ?: "导入失败") }
         }
+    }
+
+    private fun importExternalTtsEngineIfRequested() {
+        val uri = requireActivity().intent
+            .getStringExtra(EXTRA_IMPORT_URI)
+            ?.let(Uri::parse)
+            ?: return
+        requireActivity().intent.removeExtra(EXTRA_IMPORT_URI)
+        importTtsEngineFromUri(uri)
     }
 
     private fun showImportTtsEngineUrlDialog() {
