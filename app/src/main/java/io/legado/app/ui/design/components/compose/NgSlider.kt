@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.dp
 import io.legado.app.ui.design.theme.NgTheme
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class NgSliderVariant {
@@ -104,6 +105,8 @@ fun NgSlider(
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
     steps: Int = 0,
+    visualSteps: Int = steps,
+    emphasizedValue: Float? = null,
     variant: NgSliderVariant = NgSliderVariant.CONTINUOUS,
     enabled: Boolean = true,
     onValueChangeFinished: (() -> Unit)? = null
@@ -112,6 +115,7 @@ fun NgSlider(
         "valueRange must have a positive length"
     }
     require(steps >= 0) { "steps must be non-negative" }
+    require(visualSteps >= 0) { "visualSteps must be non-negative" }
 
     val colors = NgTheme.colors
     val currentValue = value.coerceIn(valueRange)
@@ -152,7 +156,7 @@ fun NgSlider(
                     }
                 }
             }
-            .pointerInput(enabled, valueRange, steps, compact) {
+            .pointerInput(enabled, valueRange, steps, visualSteps, compact) {
                 if (!enabled) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -222,15 +226,28 @@ fun NgSlider(
         )
 
         if (variant == NgSliderVariant.DISCRETE) {
-            val tickCount = steps + 2
+            val tickCount = visualSteps + 2
             repeat(tickCount) { index ->
                 val tickFraction = index.toFloat() / (tickCount - 1)
                 val tickX = trackStart + trackWidth * tickFraction
+                val emphasized = emphasizedValue?.let { target ->
+                    abs(
+                        valueRange.start + rangeLength * tickFraction - target
+                    ) < 0.0001f
+                } == true
                 drawCircle(
                     color = if (tickFraction <= fraction) thumbSurface else primary,
-                    radius = 2.25.dp.toPx(),
+                    radius = if (emphasized) 3.5.dp.toPx() else 2.25.dp.toPx(),
                     center = Offset(tickX, size.height / 2f)
                 )
+                if (emphasized) {
+                    drawCircle(
+                        color = primary.copy(alpha = 0.55f * enabledAlpha),
+                        radius = 5.dp.toPx(),
+                        center = Offset(tickX, size.height / 2f),
+                        style = Stroke(width = 1.dp.toPx())
+                    )
+                }
             }
         }
 

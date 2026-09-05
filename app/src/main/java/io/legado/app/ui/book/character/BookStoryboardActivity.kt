@@ -1003,7 +1003,7 @@ class BookStoryboardActivity : BaseActivity<ComposeActivityBinding>() {
         toastOnUi("正在合成片段试听...")
         previewJob = lifecycleScope.launch {
             val result = runCatching {
-                val file = withContext(IO) {
+                val prepared = withContext(IO) {
                     val router = ReadBook.book?.let { ReadAloudTtsRouter.create(it) }
                     val route = router?.route(segment, baseEngine, scene)
                     val engine = (route?.engine ?: baseEngine)
@@ -1022,11 +1022,16 @@ class BookStoryboardActivity : BaseActivity<ComposeActivityBinding>() {
                             synthesisContext = synthesisContext
                         )
                     }
+                    file to engine.voicePlaybackParams(route?.voiceId ?: engine.activeVoiceId)
                 }
                 previewPlayer?.release()
                 previewPlayer = TtsPlayerFactory.create(this@BookStoryboardActivity).apply {
-                    setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
-                    setPlaybackSpeed(TtsSpeedPolicy.playbackRate(AppConfig.speechRatePlay))
+                    setMediaItem(MediaItem.fromUri(Uri.fromFile(prepared.first)))
+                    TtsPlayerFactory.applyPlaybackAdjustments(
+                        player = this,
+                        baseRate = TtsSpeedPolicy.playbackRate(AppConfig.speechRatePlay),
+                        voiceParams = prepared.second,
+                    )
                     prepare()
                     play()
                 }

@@ -1,6 +1,6 @@
 // @name 阶跃星辰 StepAudio 2.5 TTS
 // @schema 1
-// @version 1.0.6
+// @version 1.0.7
 // @uuid stepfun_stepaudio_2_5_tts_v2_manual
 // @author Legado NG local adapter
 // @url https://api.stepfun.com/step_plan/v1/audio/speech
@@ -12,7 +12,7 @@
 // @defaultPitch 50
 // @concurrentRate 200
 // @maxConcurrency 2
-// @capabilities scene_context,performance_instruction
+// @capabilities scene_context,performance_instruction,synthesis_speed,synthesis_volume
 // @sampleText 前不见古人，后不见来者。念天地之悠悠，独怆然而涕下。
 // @description Step Plan 接入。合成格式与采样率均可配置，默认使用非流式 48kHz WAV；场景写入全局 instruction，演员提示写入正文括号。
 
@@ -78,13 +78,6 @@ function options() {
     return [
         { key: "apiKey", label: "Step Plan API Key", type: "password", defaultValue: "" },
         {
-            key: "synthesisSpeed",
-            label: "合成语速",
-            type: "select",
-            defaultValue: "1.0",
-            values: ["0.8", "0.9", "1.0", "1.1", "1.2"]
-        },
-        {
             key: "outputFormat",
             label: "合成格式",
             type: "select",
@@ -140,7 +133,31 @@ function outputFormat(options) {
     return trimText(options && options.outputFormat).toLowerCase() === "mp3" ? "mp3" : "wav";
 }
 
-function buildStepFunPayload(text, voice, options, ctx) {
+function normalizedParam(params, key) {
+    var value = params && params[key] != null ? Number(params[key]) : 50;
+    if (isNaN(value)) value = 50;
+    return Math.max(0, Math.min(100, value));
+}
+
+function roundToTwo(value) {
+    return Math.round(value * 100) / 100;
+}
+
+function synthesisSpeed(params) {
+    var value = normalizedParam(params, "speed");
+    return roundToTwo(value <= 50
+        ? 0.5 + value / 100
+        : 1.0 + (value - 50) / 50);
+}
+
+function synthesisVolume(params) {
+    var value = normalizedParam(params, "volume");
+    return roundToTwo(value <= 50
+        ? 0.1 + 0.9 * value / 50
+        : 1.0 + (value - 50) / 50);
+}
+
+function buildStepFunPayload(text, voice, params, options, ctx) {
     var content = trimText(text);
     if (!content) throw "合成文本不能为空";
 
@@ -152,8 +169,8 @@ function buildStepFunPayload(text, voice, options, ctx) {
         voice: trimText(voice && voice.id),
         input: input,
         response_format: outputFormat(options),
-        speed: Number(options && options.synthesisSpeed || 1.0),
-        volume: 1.0,
+        speed: synthesisSpeed(params),
+        volume: synthesisVolume(params),
         sample_rate: Number(options && options.sampleRate || 48000),
         text_normalization: "enhanced"
     };
@@ -173,7 +190,7 @@ function synthesize(text, voice, params, options, ctx) {
             Authorization: "Bearer " + apiKey,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(buildStepFunPayload(text, voice, options, ctx)),
+        body: JSON.stringify(buildStepFunPayload(text, voice, params, options, ctx)),
         requestContentType: "application/json",
         audioContentType: format === "mp3" ? "audio/mpeg" : "audio/wav",
         timeout: Number(options && options.timeout || 120),

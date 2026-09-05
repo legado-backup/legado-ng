@@ -31,6 +31,7 @@ import io.legado.app.help.http.text
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.tts.DEFAULT_TTS_RANDOM_NUMBER_DIGITS
 import io.legado.app.help.tts.TtsEngineSetting
+import io.legado.app.help.tts.TtsEngineCapability
 import io.legado.app.help.tts.TtsEngineImportConflictAction
 import io.legado.app.help.tts.TtsEngineImportConflictException
 import io.legado.app.help.tts.TtsEngineStore
@@ -1002,6 +1003,13 @@ class TtsEngineConfigFragment : BaseFragment(0),
             configOptionsLoadedScript = engine.script
             return
         }
+        val formName = resolveTtsEngineFormName(
+            targetEngineId = engine.id,
+            currentFormEngineId = engineFormScreenState.engineId,
+            currentFormName = configValue("name"),
+            targetEngineName = engine.name,
+        )
+        configEntities.clear()
         engineFormScreenState = TtsEngineFormScreenState(
             engineId = engine.id,
             engineEnabled = engine.enabled,
@@ -1026,8 +1034,7 @@ class TtsEngineConfigFragment : BaseFragment(0),
                 configOptionsLoadedScript = null
                 return@launch
             }
-            val currentName = configValue("name").ifBlank { current.name }
-            applyConfigEntities(current.copy(name = currentName), options)
+            applyConfigEntities(current.copy(name = formName), options)
             configOptionsLoadedScript = requestedScript
         }
     }
@@ -1210,10 +1217,14 @@ class TtsEngineConfigFragment : BaseFragment(0),
     }
 
     private fun bindVoiceParams(engine: TtsEngineSetting) {
+        val params = engine.effectiveSynthesisParams()
         voiceParamPanelState = TtsVoiceParamPanelState(
-            speed = engine.effectiveSpeed(),
-            volume = engine.effectiveVolume(),
-            pitch = engine.effectivePitch(),
+            speed = params.speed,
+            volume = params.volume,
+            pitch = params.pitch,
+            speedEnabled = engine.supportsCapability(TtsEngineCapability.SYNTHESIS_SPEED),
+            volumeEnabled = engine.supportsCapability(TtsEngineCapability.SYNTHESIS_VOLUME),
+            pitchEnabled = engine.supportsCapability(TtsEngineCapability.SYNTHESIS_PITCH),
             languages = availableVoiceLanguageLabels(),
             selectedLanguages = selectedVoiceLanguageFilters.toSet(),
             selectedGenders = selectedVoiceGenderFilters.toSet(),
@@ -1249,8 +1260,34 @@ class TtsEngineConfigFragment : BaseFragment(0),
             volume = voiceParamPanelState.volume,
             pitch = voiceParamPanelState.pitch,
         )?.let { updated ->
-            detailEngineSnapshot = updated
+            applyUpdatedRuntimeEngine(updated)
         }
+    }
+
+    private fun applyUpdatedRuntimeEngine(engine: TtsEngineSetting) {
+        detailEngineSnapshot = engine
+        engineSettingsSnapshot = engineSettingsSnapshot.map { current ->
+            if (current.id == engine.id) engine else current
+        }
+        bindVoiceParams(engine)
+        applyVoiceFilter()
+    }
+
+    private fun showVoiceParamsDialog(voice: TtsVoice) {
+        val engine = currentDisplayedEngine()
+            ?.takeIf(TtsEngineSetting::isScriptEngine)
+            ?: return
+        modalDialog?.dismiss()
+        modalDialog = showTtsVoiceParamsDialog(
+            context = requireContext(),
+            engine = engine,
+            voice = voice,
+            onEngineUpdated = { updated ->
+                voicePreviewController?.refreshPlaybackParams(updated, voice)
+                applyUpdatedRuntimeEngine(updated)
+            },
+            onDismissed = { modalDialog = null },
+        )
     }
 
     private fun toggleVoiceLanguageFilter(label: String) {
@@ -1361,6 +1398,8 @@ class TtsEngineConfigFragment : BaseFragment(0),
             tags = detailTags,
             checked = checked,
             dimmed = !isSystemEngine && !checked,
+            canEditParams = !isSystemEngine,
+            hasVoiceParams = !isSystemEngine && engine.hasVoiceParams(id),
         )
     }
 
@@ -1369,6 +1408,7 @@ class TtsEngineConfigFragment : BaseFragment(0),
             is TtsEngineVoiceListAction.EnabledChanged -> action.voiceId
             is TtsEngineVoiceListAction.Preview -> action.voiceId
             is TtsEngineVoiceListAction.PreviewStyle -> action.voiceId
+            is TtsEngineVoiceListAction.EditParams -> action.voiceId
         }
         val voice = allVoices.firstOrNull { it.id == voiceId } ?: return
         when (action) {
@@ -1400,6 +1440,7 @@ class TtsEngineConfigFragment : BaseFragment(0),
                     showPreviewStyleSelector(engine, voice, styles)
                 }
             }
+            is TtsEngineVoiceListAction.EditParams -> showVoiceParamsDialog(voice)
         }
     }
 

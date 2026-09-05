@@ -1,6 +1,6 @@
 // @name Xiaomi MiMo V2.5 TTS
 // @schema 1
-// @version 1.0.1
+// @version 1.0.2
 // @uuid mimo_v25_tts
 // @author Legado
 // @url https://api.xiaomimimo.com/v1
@@ -11,7 +11,7 @@
 // @defaultVolume 50
 // @defaultPitch 50
 // @sampleText 前不见古人，后不见来者。念天地之悠悠，独怆然而涕下。
-// @capabilities style_tags,emotion,emotion_intensity
+// @capabilities style_tags,emotion,emotion_intensity,synthesis_speed
 // @description 小米 MiMo V2.5 预置音色 TTS 模板。当前按非流式 wav/base64 接入，不处理 stream=true 的 PCM 增量音频。
 
 var MIMO_STYLE_OPTIONS = [

@@ -10,7 +10,7 @@ object TtsSpeedPolicy {
     }
 
     fun synthesisSpeed(engine: TtsEngineSetting): Int {
-        return engine.effectiveSpeed()
+        return engine.effectiveSynthesisParams().speed
     }
 
     fun playbackLabel(speechRateProgress: Int): String {

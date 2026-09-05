@@ -2,6 +2,7 @@ package io.legado.app.ui.book.read.aloud
 
 import android.os.Bundle
 import android.view.View
+import androidx.activity.ComponentDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -91,7 +92,9 @@ import io.legado.app.ui.config.TtsVoiceDrawerState
 import io.legado.app.ui.config.TtsVoiceOption
 import io.legado.app.ui.config.TtsVoicePreviewController
 import io.legado.app.ui.config.TtsVoiceSelectionDrawerContent
+import io.legado.app.ui.config.showTtsVoiceParamsDialog
 import io.legado.app.ui.config.toDrawerCard
+import io.legado.app.ui.config.withUpdatedEngine
 import io.legado.app.ui.design.components.NgButtonVariant
 import io.legado.app.ui.design.components.NgDialogVariant
 import io.legado.app.ui.design.components.compose.NgButton
@@ -1153,6 +1156,7 @@ internal class ReadAloudVoiceDialog : ReadAloudComposeBottomSheet() {
 
     private var state by mutableStateOf(TtsVoiceDrawerState())
     private var previewController: TtsVoicePreviewController? = null
+    private var voiceParamsDialog: ComponentDialog? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -1179,6 +1183,7 @@ internal class ReadAloudVoiceDialog : ReadAloudComposeBottomSheet() {
                     enableLongPressPreview = true,
                     onSelect = ::selectVoice,
                     onPreview = { previewController?.preview(it.engine, it.voice, it.systemDefault) },
+                    onEditParams = ::editVoiceParams,
                     onRetryFetch = ::loadVoices,
                 )
             }
@@ -1277,6 +1282,23 @@ internal class ReadAloudVoiceDialog : ReadAloudComposeBottomSheet() {
         }
     }
 
+    private fun editVoiceParams(option: TtsVoiceOption) {
+        if (option.systemDefault || !option.engine.isScriptEngine) return
+        val player = activity as? ReadAloudPlayerActivity ?: return
+        voiceParamsDialog?.dismiss()
+        voiceParamsDialog = showTtsVoiceParamsDialog(
+            context = player,
+            engine = option.engine,
+            voice = option.voice,
+            onEngineUpdated = { updated ->
+                previewController?.refreshPlaybackParams(updated, option.voice)
+                state = state.withUpdatedEngine(updated)
+                player.invalidateVoiceLabel()
+            },
+            onDismissed = { voiceParamsDialog = null },
+        )
+    }
+
     private fun selectVoice(option: TtsVoiceOption) {
         val player = activity as? ReadAloudPlayerActivity ?: return
         val wasRun = BaseReadAloudService.isRun
@@ -1313,6 +1335,8 @@ internal class ReadAloudVoiceDialog : ReadAloudComposeBottomSheet() {
     }
 
     override fun onDestroyView() {
+        voiceParamsDialog?.dismiss()
+        voiceParamsDialog = null
         previewController?.release()
         previewController = null
         super.onDestroyView()

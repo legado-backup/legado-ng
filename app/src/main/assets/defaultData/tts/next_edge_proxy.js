@@ -1,6 +1,6 @@
 // @name Next Edge TTS
 // @schema 1
-// @version 1.0.9
+// @version 1.0.10
 // @uuid next_edge_proxy
 // @author Legado
 // @url http://5.45.99.149:8075/tts
@@ -11,7 +11,7 @@
 // @defaultVolume 50
 // @defaultPitch 50
 // @sampleText 前不见古人，后不见来者。念天地之悠悠，独怆然而涕下。
-// @capabilities style_tags,emotion
+// @capabilities style_tags,emotion,synthesis_speed,synthesis_pitch
 // @description 第三方 Edge TTS 中转调试模板，发音人画像和 styles 参考 Edge VoiceTag 与 Azure Speech 文档。
 
 var STYLE_NAMES;
@@ -325,8 +325,8 @@ function synthesize(text, voice, params, options, ctx) {
     var api = String(options.api || "http://5.45.99.149:8075/tts").replace(/\/+$/, "");
     var voiceId = String((voice && voice.id) || "zh-CN-YunxiNeural");
     var style = selectedStyleValue(voice) || automaticStyleValue(voice, ctx);
-    var rate = clamp((Number(params.speed || 50) - 50) * 2, -100, 100);
-    var pitch = clamp((Number(params.pitch || 50) - 50) * 2, -100, 100);
+    var rate = clamp((normalizedParam(params, "speed") - 50) * 2, -100, 100);
+    var pitch = clamp((normalizedParam(params, "pitch") - 50) * 2, -100, 100);
     var query = [
         "t=" + encodeURIComponent(text),
         "v=" + encodeURIComponent(voiceId),
@@ -429,4 +429,10 @@ function clamp(value, min, max) {
         return 0;
     }
     return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function normalizedParam(params, key) {
+    var value = params && params[key] != null ? Number(params[key]) : 50;
+    if (isNaN(value)) value = 50;
+    return Math.max(0, Math.min(100, Math.round(value)));
 }

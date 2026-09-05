@@ -185,9 +185,9 @@ object TtsScriptEngineClient {
                 request = request,
                 engine = engine,
                 text = text,
-                speed = speed,
-                volume = volume,
-                pitch = pitch,
+                speed = prepared.params.speed,
+                volume = prepared.params.volume,
+                pitch = prepared.params.pitch,
                 voiceId = prepared.voiceId,
                 voiceName = prepared.voiceName,
                 coroutineContext = coroutineContext,
@@ -231,11 +231,17 @@ object TtsScriptEngineClient {
     ): PreparedSynthesisRequest {
         val voice = TtsEngineStore.voice(engine.id, voiceId)
             ?: engine.effectiveVoices().firstOrNull { it.id == voiceId }
+        val resolvedVoiceId = voice?.id ?: voiceId
+        val resolvedParams = engine.effectiveSynthesisParams(
+            baseSpeed = speed,
+            baseVolume = volume,
+            basePitch = pitch,
+        )
         val options = engine.effectiveOptionValues(loadOptions(engine))
         val params = mapOf(
-            "speed" to speed.coerceIn(0, 100),
-            "volume" to volume.coerceIn(0, 100),
-            "pitch" to pitch.coerceIn(0, 100)
+            "speed" to resolvedParams.speed,
+            "volume" to resolvedParams.volume,
+            "pitch" to resolvedParams.pitch,
         )
         val synthesis = callEngineFunction(
             engine = engine,
@@ -251,8 +257,9 @@ object TtsScriptEngineClient {
         val request = parseSynthesisRequest(synthesis, engine)
         return PreparedSynthesisRequest(
             request = request,
-            voiceId = voice?.id ?: voiceId,
-            voiceName = voice?.name
+            voiceId = resolvedVoiceId,
+            voiceName = voice?.name,
+            params = resolvedParams,
         )
     }
 
@@ -402,15 +409,20 @@ object TtsScriptEngineClient {
         pitch: Int = engine.effectivePitch(),
         synthesisContext: TtsSynthesisContext? = null
     ): String {
+        val resolvedParams = engine.effectiveSynthesisParams(
+            baseSpeed = speed,
+            baseVolume = volume,
+            basePitch = pitch,
+        )
         return listOf(
             engine.id,
             MD5Utils.md5Encode16(engine.script),
             GSON.toJson(engine.optionValues),
             voiceId.orEmpty(),
             styleId.orEmpty(),
-            speed.coerceIn(0, 100).toString(),
-            volume.coerceIn(0, 100).toString(),
-            pitch.coerceIn(0, 100).toString(),
+            resolvedParams.speed.toString(),
+            resolvedParams.volume.toString(),
+            resolvedParams.pitch.toString(),
             GSON.toJson(synthesisContext),
             text
         ).joinToString("-|-")
@@ -816,6 +828,7 @@ object TtsScriptEngineClient {
     private data class PreparedSynthesisRequest(
         val request: TtsScriptRequest,
         val voiceId: String?,
-        val voiceName: String?
+        val voiceName: String?,
+        val params: TtsSynthesisParams,
     )
 }

@@ -95,6 +95,32 @@ class TtsEngineFormScreenTest {
     }
 
     @Test
+    fun formName_doesNotLeakAcrossEnginesDuringAsyncOptionLoad() {
+        assertEquals(
+            "Xiaomi MiMo V2.5 TTS",
+            resolveTtsEngineFormName(
+                targetEngineId = "mimo",
+                currentFormEngineId = "multitts",
+                currentFormName = "MultiTTS·转发器",
+                targetEngineName = "Xiaomi MiMo V2.5 TTS",
+            ),
+        )
+    }
+
+    @Test
+    fun formName_preservesSameEngineValueDuringAsyncOptionReload() {
+        assertEquals(
+            "自定义名称",
+            resolveTtsEngineFormName(
+                targetEngineId = "mimo",
+                currentFormEngineId = "mimo",
+                currentFormName = "  自定义名称  ",
+                targetEngineName = "Xiaomi MiMo V2.5 TTS",
+            ),
+        )
+    }
+
+    @Test
     fun discreteFields_autoSaveImmediatelyWhileTextWaitsForEditFinish() {
         assertTrue(shouldSaveTtsEngineFieldImmediately(TtsEngineFormFieldType.SELECT))
         assertTrue(shouldSaveTtsEngineFieldImmediately(TtsEngineFormFieldType.BOOLEAN))

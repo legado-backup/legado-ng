@@ -198,6 +198,14 @@ object ReadAloud {
         }
     }
 
+    fun refreshTtsPlaybackParams(context: Context) {
+        if (BaseReadAloudService.isRun) {
+            val intent = Intent(context, aloudClass)
+            intent.action = IntentAction.refreshTtsPlaybackParams
+            context.startForegroundServiceCompat(intent)
+        }
+    }
+
     fun prepareTtsCasting(context: Context) {
         if (BaseReadAloudService.isRun) {
             val intent = Intent(context, aloudClass)

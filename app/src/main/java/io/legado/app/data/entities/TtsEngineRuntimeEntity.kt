@@ -15,6 +15,8 @@ data class TtsEngineRuntimeEntity(
     var volume: Int = 50,
     @ColumnInfo(defaultValue = "50")
     var pitch: Int = 50,
+    @ColumnInfo(defaultValue = "{}")
+    var voiceParamsJson: String = "{}",
     @ColumnInfo(defaultValue = "0")
     var updatedAt: Long = 0L
 )

@@ -1,6 +1,6 @@
 // @name 脚本选项示例
 // @schema 1
-// @version 1.0.4
+// @version 1.0.5
 // @uuid script_options_example
 // @author Legado
 // @url http://localhost:8774
@@ -10,6 +10,7 @@
 // @defaultSpeed 50
 // @defaultVolume 50
 // @defaultPitch 50
+// @capabilities synthesis_speed,synthesis_volume,synthesis_pitch
 // @description 展示 text/password/number/select/boolean/randomNumber 六类 options，并使用 MultiTTS 接口验证表单、发音人和试听。
 
 function options() {
@@ -84,13 +85,13 @@ function parseMultiTtsVoices(body) {
 
 function synthesize(text, voice, params, options, ctx) {
     var query = [
-        "volume=" + encodeURIComponent(params.volume),
-        "speed=" + encodeURIComponent(params.speed),
+        "volume=" + encodeURIComponent(normalizedParam(params, "volume")),
+        "speed=" + encodeURIComponent(normalizedParam(params, "speed")),
         "voice=" + encodeURIComponent(voice.id || ""),
         "text=" + encodeURIComponent(text)
     ];
     if (String(options.sendPitch) !== "false") {
-        query.push("pitch=" + encodeURIComponent(params.pitch));
+        query.push("pitch=" + encodeURIComponent(normalizedParam(params, "pitch")));
     }
     return {
         url: baseUrl(options) + "/forward?" + query.join("&"),
@@ -99,4 +100,10 @@ function synthesize(text, voice, params, options, ctx) {
         timeout: Number(options.timeout || 30),
         retry: 1
     };
+}
+
+function normalizedParam(params, key) {
+    var value = params && params[key] != null ? Number(params[key]) : 50;
+    if (isNaN(value)) value = 50;
+    return Math.max(0, Math.min(100, Math.round(value)));
 }

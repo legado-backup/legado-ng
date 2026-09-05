@@ -20,6 +20,7 @@ class TtsSpeedPolicyTest {
             id = "test",
             name = "Test",
             type = TtsEngineType.SCRIPT,
+            capabilities = setOf(TtsEngineCapability.SYNTHESIS_SPEED),
             defaultSpeed = 50,
             runtimeSpeed = 42
         )

@@ -5,18 +5,33 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.AudioProcessorChain
 import androidx.media3.common.audio.BaseAudioProcessor
+import androidx.media3.common.audio.SonicAudioProcessor
 import com.tianscar.soundtouch.SoundTouch
 import java.nio.ByteBuffer
 import kotlin.math.abs
+import kotlin.math.roundToInt
+
+internal fun applyTtsPcm16Gain(sample: Short, gain: Float): Short {
+    return (sample * gain.coerceIn(0.1f, 2f))
+        .roundToInt()
+        .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+        .toShort()
+}
 
 internal class TtsSoundTouchAudioProcessor : BaseAudioProcessor() {
 
     private var playbackParameters = PlaybackParameters.DEFAULT
+    @Volatile
+    private var volumeGain = 1f
     private var soundTouch: SoundTouch? = null
 
     fun setPlaybackParameters(parameters: PlaybackParameters): PlaybackParameters {
         playbackParameters = parameters
         return parameters
+    }
+
+    fun setVolumeGain(gain: Float) {
+        volumeGain = gain.coerceIn(0.1f, 2f)
     }
 
     fun getMediaDuration(playoutDurationUs: Long): Long {
@@ -32,7 +47,8 @@ internal class TtsSoundTouchAudioProcessor : BaseAudioProcessor() {
 
     override fun isActive(): Boolean {
         return abs(playbackParameters.speed - 1f) >= CLOSE_THRESHOLD ||
-            abs(playbackParameters.pitch - 1f) >= CLOSE_THRESHOLD
+            abs(playbackParameters.pitch - 1f) >= CLOSE_THRESHOLD ||
+            abs(volumeGain - 1f) >= CLOSE_THRESHOLD
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
@@ -73,6 +89,7 @@ internal class TtsSoundTouchAudioProcessor : BaseAudioProcessor() {
     override fun onReset() {
         releaseProcessor()
         playbackParameters = PlaybackParameters.DEFAULT
+        volumeGain = 1f
     }
 
     private fun drainOutput(processor: SoundTouch, channelCount: Int) {
@@ -83,11 +100,21 @@ internal class TtsSoundTouchAudioProcessor : BaseAudioProcessor() {
         val receivedFrames = processor.receiveSamplesI16(outputSamples, 0, availableFrames)
         if (receivedFrames == 0) return
 
+        applyVolumeGain(outputSamples, receivedFrames * channelCount)
+
         val outputSize = receivedFrames * channelCount * BYTES_PER_SAMPLE
         replaceOutputBuffer(outputSize).apply {
             asShortBuffer().put(outputSamples, 0, receivedFrames * channelCount)
             position(outputSize)
             flip()
+        }
+    }
+
+    private fun applyVolumeGain(samples: ShortArray, sampleCount: Int) {
+        val gain = volumeGain
+        if (abs(gain - 1f) < CLOSE_THRESHOLD) return
+        for (index in 0 until sampleCount) {
+            samples[index] = applyTtsPcm16Gain(samples[index], gain)
         }
     }
 
@@ -105,7 +132,12 @@ internal class TtsSoundTouchAudioProcessor : BaseAudioProcessor() {
     }
 }
 
-internal class TtsSoundTouchAudioProcessorChain : AudioProcessorChain {
+internal interface TtsAdjustableAudioProcessorChain : AudioProcessorChain {
+
+    fun applyPlaybackAdjustments(params: TtsEffectivePlaybackParams): Boolean
+}
+
+internal class TtsSoundTouchAudioProcessorChain : TtsAdjustableAudioProcessorChain {
 
     private val processor = TtsSoundTouchAudioProcessor()
     private val processors = arrayOf<AudioProcessor>(processor)
@@ -116,6 +148,13 @@ internal class TtsSoundTouchAudioProcessorChain : AudioProcessorChain {
         return processor.setPlaybackParameters(playbackParameters)
     }
 
+    override fun applyPlaybackAdjustments(params: TtsEffectivePlaybackParams): Boolean {
+        val wasActive = processor.isActive()
+        processor.setVolumeGain(params.volumeGain)
+        processor.setPlaybackParameters(params.playbackParameters)
+        return wasActive != processor.isActive()
+    }
+
     override fun applySkipSilenceEnabled(skipSilenceEnabled: Boolean): Boolean = false
 
     override fun getMediaDuration(playoutDuration: Long): Long {
@@ -124,3 +163,96 @@ internal class TtsSoundTouchAudioProcessorChain : AudioProcessorChain {
 
     override fun getSkippedOutputFrameCount(): Long = 0L
 }
+
+/**
+ * Keeps multi-role playlists on Media3's format-change-safe Sonic processor while applying
+ * voice-specific volume after time stretching.
+ */
+internal class TtsMedia3AudioProcessorChain : TtsAdjustableAudioProcessorChain {
+
+    private val sonicProcessor = SonicAudioProcessor()
+    private val gainProcessor = TtsPcmGainAudioProcessor()
+    private val processors = arrayOf<AudioProcessor>(sonicProcessor, gainProcessor)
+    private var playbackParameters = PlaybackParameters.DEFAULT
+    private var volumeGain = 1f
+
+    override fun getAudioProcessors(): Array<AudioProcessor> = processors
+
+    override fun applyPlaybackParameters(playbackParameters: PlaybackParameters): PlaybackParameters {
+        this.playbackParameters = playbackParameters
+        sonicProcessor.setSpeed(playbackParameters.speed)
+        sonicProcessor.setPitch(playbackParameters.pitch)
+        return playbackParameters
+    }
+
+    override fun applyPlaybackAdjustments(params: TtsEffectivePlaybackParams): Boolean {
+        val wasSonicActive = isSonicLogicallyActive()
+        val wasGainActive = isGainLogicallyActive()
+        volumeGain = params.volumeGain.coerceIn(0.1f, 2f)
+        gainProcessor.setVolumeGain(volumeGain)
+        applyPlaybackParameters(params.playbackParameters)
+        return wasSonicActive != isSonicLogicallyActive() ||
+            wasGainActive != isGainLogicallyActive()
+    }
+
+    override fun applySkipSilenceEnabled(skipSilenceEnabled: Boolean): Boolean = false
+
+    override fun getMediaDuration(playoutDuration: Long): Long {
+        return sonicProcessor.getMediaDuration(playoutDuration)
+    }
+
+    override fun getSkippedOutputFrameCount(): Long = 0L
+
+    private fun isSonicLogicallyActive(): Boolean {
+        return abs(playbackParameters.speed - 1f) >= CLOSE_THRESHOLD ||
+            abs(playbackParameters.pitch - 1f) >= CLOSE_THRESHOLD
+    }
+
+    private fun isGainLogicallyActive(): Boolean =
+        abs(volumeGain - 1f) >= CLOSE_THRESHOLD
+}
+
+internal class TtsPcmGainAudioProcessor : BaseAudioProcessor() {
+
+    @Volatile
+    private var volumeGain = 1f
+
+    fun setVolumeGain(gain: Float) {
+        volumeGain = gain.coerceIn(0.1f, 2f)
+    }
+
+    override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
+        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
+            throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
+        }
+        return inputAudioFormat
+    }
+
+    override fun isActive(): Boolean = abs(volumeGain - 1f) >= CLOSE_THRESHOLD
+
+    override fun queueInput(inputBuffer: ByteBuffer) {
+        val sampleCount = inputBuffer.remaining() / BYTES_PER_SAMPLE
+        if (sampleCount == 0) return
+
+        val inputSamples = ShortArray(sampleCount)
+        inputBuffer.asShortBuffer().get(inputSamples)
+        inputBuffer.position(inputBuffer.position() + sampleCount * BYTES_PER_SAMPLE)
+        for (index in inputSamples.indices) {
+            inputSamples[index] = applyTtsPcm16Gain(inputSamples[index], volumeGain)
+        }
+
+        val outputSize = sampleCount * BYTES_PER_SAMPLE
+        replaceOutputBuffer(outputSize).apply {
+            asShortBuffer().put(inputSamples)
+            position(outputSize)
+            flip()
+        }
+    }
+
+    override fun onReset() {
+        volumeGain = 1f
+    }
+}
+
+private const val BYTES_PER_SAMPLE = 2
+private const val CLOSE_THRESHOLD = 0.0001f

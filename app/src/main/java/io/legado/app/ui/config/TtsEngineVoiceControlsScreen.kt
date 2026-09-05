@@ -74,6 +74,9 @@ internal data class TtsVoiceParamPanelState(
     val speed: Int = 50,
     val volume: Int = 50,
     val pitch: Int = 50,
+    val speedEnabled: Boolean = true,
+    val volumeEnabled: Boolean = true,
+    val pitchEnabled: Boolean = true,
     val languages: List<String> = emptyList(),
     val selectedLanguages: Set<String> = emptySet(),
     val selectedGenders: Set<String> = emptySet(),
@@ -324,10 +327,13 @@ internal fun TtsVoiceParamPopupContent(
             .background(colorResource(R.color.ng_surface))
             .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
-        TtsVoiceParamsSliderPanel(
+        TtsSynthesisParamsSliderPanel(
             speed = state.speed,
             volume = state.volume,
             pitch = state.pitch,
+            speedEnabled = state.speedEnabled,
+            volumeEnabled = state.volumeEnabled,
+            pitchEnabled = state.pitchEnabled,
             onSpeedChange = onSpeedChange,
             onVolumeChange = onVolumeChange,
             onPitchChange = onPitchChange,
@@ -342,7 +348,7 @@ internal fun TtsVoiceParamPopupContent(
                 FlowRow(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 10.dp),
+                        .padding(start = 10.dp, top = 3.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {

@@ -116,6 +116,17 @@ class TtsVoicePreviewController(
         return true
     }
 
+    fun refreshPlaybackParams(engine: TtsEngineSetting, voice: TtsVoice) {
+        if (activeKey != keyOf(engine, voice, systemDefault = false)) return
+        previewPlayer?.let { player ->
+            TtsPlayerFactory.applyPlaybackAdjustments(
+                player = player,
+                baseRate = TtsSpeedPolicy.playbackRate(AppConfig.speechRatePlay),
+                voiceParams = engine.voicePlaybackParams(voice.id),
+            )
+        }
+    }
+
     private fun previewScriptVoice(
         engine: TtsEngineSetting,
         voice: TtsVoice,
@@ -123,12 +134,17 @@ class TtsVoicePreviewController(
         styleId: String?,
         key: String
     ) {
-        val scriptEngine = engine.takeIf { it.enabled && it.type == TtsEngineType.SCRIPT }
+        val scriptEngine = engine.takeIf { it.type == TtsEngineType.SCRIPT }
             ?: run {
                 finishPreview(key)
                 context.toastOnUi("当前发音人不支持试听")
                 return
             }
+        if (!scriptEngine.enabled) {
+            finishPreview(key)
+            context.toastOnUi(context.getString(R.string.tts_preview_engine_disabled))
+            return
+        }
         val token = ++requestToken
         previewJob = lifecycleScope.launch {
             try {
@@ -155,7 +171,13 @@ class TtsVoicePreviewController(
                     return@launch
                 }
                 previewFile = file
-                startPlayer(file, key, token)
+                startPlayer(
+                    file = file,
+                    key = key,
+                    token = token,
+                    engine = scriptEngine,
+                    voiceId = voice.id,
+                )
             } catch (_: CancellationException) {
                 // 新的试听或页面销毁会主动取消旧请求。
             } catch (error: Throwable) {
@@ -169,7 +191,13 @@ class TtsVoicePreviewController(
         }
     }
 
-    private fun startPlayer(file: File, key: String, token: Int) {
+    private fun startPlayer(
+        file: File,
+        key: String,
+        token: Int,
+        engine: TtsEngineSetting,
+        voiceId: String,
+    ) {
         previewPlayer?.release()
         previewPlayer = TtsPlayerFactory.create(context).apply {
             addListener(object : Player.Listener {
@@ -193,7 +221,11 @@ class TtsVoicePreviewController(
                 }
             })
             setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
-            setPlaybackSpeed(TtsSpeedPolicy.playbackRate(AppConfig.speechRatePlay))
+            TtsPlayerFactory.applyPlaybackAdjustments(
+                player = this,
+                baseRate = TtsSpeedPolicy.playbackRate(AppConfig.speechRatePlay),
+                voiceParams = engine.voicePlaybackParams(voiceId),
+            )
             prepare()
             play()
         }

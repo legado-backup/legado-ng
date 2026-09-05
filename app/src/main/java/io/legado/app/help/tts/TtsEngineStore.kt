@@ -659,21 +659,93 @@ object TtsEngineStore {
         }
     }
 
+    @Synchronized
     fun saveRuntimeParams(
         engineId: String,
         speed: Int,
         volume: Int,
         pitch: Int
     ): TtsEngineSetting? {
+        val runtime = runtimeForUpdate(engineId)
+        val engine = engine(engineId)
+        val params = engine?.effectiveSynthesisParams(speed, volume, pitch)
         appDb.ttsEngineRuntimeDao.upsert(
-            TtsEngineRuntimeEntity(
-                engineId = engineId,
-                speed = speed.coerceIn(0, 100),
-                volume = volume.coerceIn(0, 100),
-                pitch = pitch.coerceIn(0, 100),
-                updatedAt = System.currentTimeMillis()
+            runtime.copy(
+                speed = params?.speed ?: speed.coerceIn(0, 100),
+                volume = params?.volume ?: volume.coerceIn(0, 100),
+                pitch = params?.pitch ?: pitch.coerceIn(0, 100),
+                updatedAt = System.currentTimeMillis(),
             )
         )
+        return notifyRuntimeChanged(engineId)
+    }
+
+    @Synchronized
+    fun saveVoiceParams(
+        engineId: String,
+        voiceId: String,
+        params: TtsVoicePlaybackParams,
+    ): TtsEngineSetting? {
+        val safeVoiceId = voiceId.takeIf(String::isNotBlank) ?: return null
+        val engine = engine(engineId)?.takeIf(TtsEngineSetting::isScriptEngine) ?: return null
+        val runtime = runtimeForUpdate(engine.id)
+        val normalized = params.normalized()
+        val updatedParams = runtime.voiceParams().toMutableMap().apply {
+            if (normalized.isNeutral()) remove(safeVoiceId) else put(safeVoiceId, normalized)
+        }
+        appDb.ttsEngineRuntimeDao.upsert(
+            runtime.copy(
+                voiceParamsJson = GSON.toJson(updatedParams.toSortedMap()),
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+        return notifyVoicePlaybackParamsChanged(engine.id)
+    }
+
+    @Synchronized
+    fun removeVoiceParams(engineId: String, voiceId: String): TtsEngineSetting? {
+        val safeVoiceId = voiceId.takeIf(String::isNotBlank) ?: return null
+        val engine = engine(engineId)?.takeIf(TtsEngineSetting::isScriptEngine) ?: return null
+        val runtime = runtimeForUpdate(engine.id)
+        val updatedParams = runtime.voiceParams().toMutableMap()
+        if (updatedParams.remove(safeVoiceId) == null) {
+            return engine
+        }
+        appDb.ttsEngineRuntimeDao.upsert(
+            runtime.copy(
+                voiceParamsJson = GSON.toJson(updatedParams.toSortedMap()),
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+        return notifyVoicePlaybackParamsChanged(engine.id)
+    }
+
+    private fun runtimeForUpdate(engineId: String): TtsEngineRuntimeEntity {
+        appDb.ttsEngineRuntimeDao.get(engineId)?.let { return it }
+        val engine = engine(engineId)
+        return TtsEngineRuntimeEntity(
+            engineId = engineId,
+            speed = engine?.effectiveSpeed() ?: 50,
+            volume = engine?.effectiveVolume() ?: 50,
+            pitch = engine?.effectivePitch() ?: 50,
+        )
+    }
+
+    private fun TtsEngineRuntimeEntity.voiceParams(): Map<String, TtsVoicePlaybackParams> {
+        val stored = GSON.fromJsonObject<Map<String, TtsVoicePlaybackParams?>>(voiceParamsJson)
+            .getOrNull()
+            .orEmpty()
+        return buildMap {
+            stored.forEach { (voiceId, params) ->
+                val normalized = params?.normalized()
+                if (voiceId.isNotBlank() && normalized != null && !normalized.isNeutral()) {
+                    put(voiceId, normalized)
+                }
+            }
+        }
+    }
+
+    private fun notifyRuntimeChanged(engineId: String): TtsEngineSetting? {
         engineSnapshotCache = null
         val updated = engine(engineId)
         val isActiveEngine = activeEngineId() == engineId
@@ -695,6 +767,15 @@ object TtsEngineStore {
                 ) -> {
                 ReadAloud.refreshTtsRoute(appCtx)
             }
+        }
+        return updated
+    }
+
+    private fun notifyVoicePlaybackParamsChanged(engineId: String): TtsEngineSetting? {
+        engineSnapshotCache = null
+        val updated = engine(engineId)
+        if (updated?.type == TtsEngineType.SCRIPT) {
+            ReadAloud.refreshTtsPlaybackParams(appCtx)
         }
         return updated
     }
@@ -828,6 +909,7 @@ object TtsEngineStore {
             runtimeSpeed = runtime?.speed,
             runtimeVolume = runtime?.volume,
             runtimePitch = runtime?.pitch,
+            voiceParams = runtime?.voiceParams().orEmpty(),
             runtimeVoices = storedVoices.takeIf { it.isNotEmpty() },
             lastVoiceUpdateTime = appDb.ttsVoiceDao.lastUpdatedAt(id) ?: 0L
         )
@@ -949,13 +1031,15 @@ object TtsEngineStore {
                                 script.contains("// @version 1.0.5") ||
                                 script.contains("// @version 1.0.6") ||
                                 script.contains("// @version 1.0.7") ||
-                                script.contains("// @version 1.0.8")
+                                script.contains("// @version 1.0.8") ||
+                                script.contains("// @version 1.0.9")
                         ) &&
-                builtIn.script.contains("// @version 1.0.9")
+                builtIn.script.contains("// @version 1.0.10")
         val shouldUpdateMimoExpressiveFields = id == MIMO_V25_TTS_ID &&
-                script.contains("// @version 1.0.0") &&
-                builtIn.script.contains("// @version 1.0.1") &&
-                builtIn.script.contains("// @capabilities style_tags,emotion,emotion_intensity")
+                (script.contains("// @version 1.0.0") ||
+                    script.contains("// @version 1.0.1")) &&
+                builtIn.script.contains("// @version 1.0.2") &&
+                builtIn.script.contains("synthesis_speed")
         val shouldUpdateMosslandClonedCatalog = id == MOSSLAND_TTS_ID &&
                 builtIn.script.contains("// @name Mossland") &&
                 builtIn.script.contains("// @version 1.3.0") &&
@@ -978,35 +1062,50 @@ object TtsEngineStore {
         val shouldUpdateStepAudioSampleRate = id == STEPAUDIO_25_TTS_ID &&
                 script.contains("// @version 1.0.1") &&
                 script.contains("sample_rate: 24000") &&
-                builtIn.script.contains("// @version 1.0.6") &&
+                builtIn.script.contains("// @version 1.0.7") &&
                 builtIn.script.contains("options.sampleRate || 48000")
         val shouldRemoveStepAudioStreamFormat = id == STEPAUDIO_25_TTS_ID &&
                 script.contains("// @version 1.0.2") &&
                 script.contains("response_format: \"mp3\"") &&
                 script.contains("stream_format: \"audio\"") &&
-                builtIn.script.contains("// @version 1.0.6") &&
+                builtIn.script.contains("// @version 1.0.7") &&
                 builtIn.script.contains("response_format: outputFormat(options)") &&
                 !builtIn.script.contains("stream_format:")
         val shouldUpdateStepAudioTemporaryWav = id == STEPAUDIO_25_TTS_ID &&
                 script.contains("// @version 1.0.3") &&
                 script.contains("response_format: \"wav\"") &&
-                builtIn.script.contains("// @version 1.0.6") &&
+                builtIn.script.contains("// @version 1.0.7") &&
                 builtIn.script.contains("response_format: outputFormat(options)") &&
                 !builtIn.script.contains("stream_format:")
         val shouldUpdateStepAudioNonStreamingMp3 = id == STEPAUDIO_25_TTS_ID &&
                 script.contains("// @version 1.0.4") &&
                 script.contains("response_format: \"mp3\"") &&
                 !script.contains("stream_format:") &&
-                builtIn.script.contains("// @version 1.0.6") &&
+                builtIn.script.contains("// @version 1.0.7") &&
                 builtIn.script.contains("response_format: outputFormat(options)") &&
                 !builtIn.script.contains("stream_format:")
         val shouldUpdateStepAudioSelectableFormat = id == STEPAUDIO_25_TTS_ID &&
                 script.contains("// @version 1.0.5") &&
                 script.contains("response_format: \"wav\"") &&
                 !script.contains("key: \"outputFormat\"") &&
-                builtIn.script.contains("// @version 1.0.6") &&
+                builtIn.script.contains("// @version 1.0.7") &&
                 builtIn.script.contains("key: \"outputFormat\"") &&
                 builtIn.script.contains("response_format: outputFormat(options)")
+        val shouldUpdateSynthesisParams = when (id) {
+            MULTITTS_FORWARDER_ID ->
+                script.contains("// @version 1.0.3") &&
+                    builtIn.script.contains("// @version 1.0.4")
+            OPTIONS_EXAMPLE_ID ->
+                script.contains("// @version 1.0.4") &&
+                    builtIn.script.contains("// @version 1.0.5")
+            STATIC_VOICES_EXAMPLE_ID ->
+                script.contains("// @version 1.0.2") &&
+                    builtIn.script.contains("// @version 1.0.3")
+            STEPAUDIO_25_TTS_ID ->
+                script.contains("// @version 1.0.6") &&
+                    builtIn.script.contains("// @version 1.0.7")
+            else -> false
+        }
         return shouldUpdateMultiTtsTemplate ||
                 shouldUpdateStaticPreviewText ||
                 shouldUpdateNextEdgeProxy ||
@@ -1017,7 +1116,8 @@ object TtsEngineStore {
                 shouldRemoveStepAudioStreamFormat ||
                 shouldUpdateStepAudioTemporaryWav ||
                 shouldUpdateStepAudioNonStreamingMp3 ||
-                shouldUpdateStepAudioSelectableFormat
+                shouldUpdateStepAudioSelectableFormat ||
+                shouldUpdateSynthesisParams
     }
 
     private fun TtsEngineSetting.shouldClearVoiceCacheFor(updated: TtsEngineSetting): Boolean {
@@ -1031,6 +1131,7 @@ object TtsEngineStore {
             runtimeSpeed = null,
             runtimeVolume = null,
             runtimePitch = null,
+            voiceParams = emptyMap(),
             runtimeVoices = null,
             lastVoiceUpdateTime = 0L
         )
@@ -1059,6 +1160,7 @@ object TtsEngineStore {
                 runtimeSpeed = source.runtimeSpeed,
                 runtimeVolume = source.runtimeVolume,
                 runtimePitch = source.runtimePitch,
+                voiceParams = source.voiceParams,
                 runtimeVoices = source.runtimeVoices,
                 lastVoiceUpdateTime = source.lastVoiceUpdateTime
             )
@@ -1423,8 +1525,11 @@ object TtsEngineStore {
     ): Boolean {
         return saved.id == NEXT_EDGE_PROXY_ID &&
             upgraded.id == NEXT_EDGE_PROXY_ID &&
-            saved.script.contains("// @version 1.0.8") &&
-            upgraded.script.contains("// @version 1.0.9")
+            (
+                saved.script.contains("// @version 1.0.8") ||
+                    saved.script.contains("// @version 1.0.9")
+                ) &&
+            upgraded.script.contains("// @version 1.0.10")
     }
 
     private fun defaultScriptIds(): Set<String> {

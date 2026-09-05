@@ -276,10 +276,13 @@ class TtsHttpForwarderClientTest {
         assertEquals(false, engine.builtIn)
         assertTrue(engine.supportsVoiceFetch())
         assertTrue(engine.script.contains("// @uuid script_options_example"))
-        assertTrue(engine.script.contains("// @version 1.0.4"))
+        assertTrue(engine.script.contains("// @version 1.0.5"))
         assertEquals(50, engine.defaultSpeed)
         assertEquals(50, engine.defaultVolume)
         assertEquals(50, engine.defaultPitch)
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_SPEED))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_VOLUME))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_PITCH))
         assertTrue(engine.script.contains("function options()"))
         assertTrue(engine.script.contains("type: \"text\""))
         assertTrue(engine.script.contains("type: \"password\""))
@@ -405,10 +408,13 @@ class TtsHttpForwarderClientTest {
         assertEquals(emptyList<TtsVoice>(), engine.voices)
         assertEquals(emptyList<TtsVoice>(), engine.effectiveVoices())
         assertTrue(engine.script.contains("// @uuid script_static_voices_example"))
-        assertTrue(engine.script.contains("// @version 1.0.2"))
+        assertTrue(engine.script.contains("// @version 1.0.3"))
         assertEquals(50, engine.defaultSpeed)
         assertEquals(50, engine.defaultVolume)
         assertEquals(50, engine.defaultPitch)
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_SPEED))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_VOLUME))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_PITCH))
         assertTrue(engine.script.contains("function options()"))
         assertTrue(engine.script.contains("function voices(options, ctx)"))
         assertTrue(engine.script.contains("microsoft_zh-CN-XiaoxiaoNeural"))
@@ -424,10 +430,13 @@ class TtsHttpForwarderClientTest {
         val engine = scriptEngineFromAssetFile("multitts_forwarder.js")
 
         assertFalse(engine.enabled)
-        assertTrue(engine.script.contains("// @version 1.0.3"))
+        assertTrue(engine.script.contains("// @version 1.0.4"))
         assertEquals(50, engine.defaultSpeed)
         assertEquals(50, engine.defaultVolume)
         assertEquals(50, engine.defaultPitch)
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_SPEED))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_VOLUME))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_PITCH))
         assertTrue(engine.script.contains("function parseMultiTtsVoices(body)"))
         assertTrue(engine.script.contains("JSON.parse(String(body || \"{}\"))"))
         assertFalse(engine.script.contains("Object.keys(catalog)"))
@@ -447,13 +456,16 @@ class TtsHttpForwarderClientTest {
         assertEquals("audio/mpeg", engine.contentType)
         assertEquals("http://5.45.99.149:8075/tts", engine.baseUrl)
         assertTrue(engine.supportsVoiceFetch())
-        assertTrue(engine.script.contains("// @version 1.0.9"))
+        assertTrue(engine.script.contains("// @version 1.0.10"))
         assertTrue(engine.script.contains("function voiceCatalog()"))
         assertTrue(engine.script.contains("defaultValue: \"http://5.45.99.149:8075/tts\""))
         assertFalse(engine.script.contains("36.248.181.23"))
         assertTrue(engine.supportsCapability(TtsEngineCapability.STYLE_TAGS))
         assertTrue(engine.supportsCapability(TtsEngineCapability.EMOTION))
         assertFalse(engine.supportsCapability(TtsEngineCapability.EMOTION_INTENSITY))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_SPEED))
+        assertFalse(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_VOLUME))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_PITCH))
         assertEquals("前不见古人，后不见来者。念天地之悠悠，独怆然而涕下。", engine.sampleText)
         assertTrue(engine.script.contains("STYLE_NAMES"))
         assertTrue(engine.script.contains("profile: \"少女感-温柔旁白\""))
@@ -498,14 +510,14 @@ class TtsHttpForwarderClientTest {
     fun nextEdgeLazyCatalogUpgradePreservesExistingVoiceDirectory() {
         val upgraded = scriptEngineFromAssetFile("next_edge_proxy.js")
         val saved = upgraded.copy(
-            script = upgraded.script.replace("// @version 1.0.9", "// @version 1.0.8")
+            script = upgraded.script.replace("// @version 1.0.10", "// @version 1.0.9")
         )
 
         assertTrue(TtsEngineStore.preservesVoiceCatalogOnDefaultUpgrade(saved, upgraded))
         assertFalse(
             TtsEngineStore.preservesVoiceCatalogOnDefaultUpgrade(
                 saved = saved.copy(
-                    script = saved.script.replace("// @version 1.0.8", "// @version 1.0.7")
+                    script = saved.script.replace("// @version 1.0.9", "// @version 1.0.7")
                 ),
                 upgraded = upgraded
             )
@@ -559,12 +571,15 @@ class TtsHttpForwarderClientTest {
         val engine = scriptEngineFromAssetFile("mimo_v25_tts.js")
 
         assertEquals(TtsEngineStore.MIMO_V25_TTS_ID, engine.id)
-        assertTrue(engine.script.contains("// @version 1.0.1"))
+        assertTrue(engine.script.contains("// @version 1.0.2"))
         assertTrue(engine.supportsCapability(TtsEngineCapability.STYLE_TAGS))
         assertTrue(engine.supportsCapability(TtsEngineCapability.EMOTION))
         assertTrue(engine.supportsCapability(TtsEngineCapability.EMOTION_INTENSITY))
         assertFalse(engine.supportsCapability(TtsEngineCapability.SCENE_CONTEXT))
         assertFalse(engine.supportsCapability(TtsEngineCapability.PERFORMANCE_INSTRUCTION))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_SPEED))
+        assertFalse(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_VOLUME))
+        assertFalse(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_PITCH))
         assertTrue(engine.script.contains("function expressiveInstruction(ctx)"))
         assertTrue(engine.script.contains("expressive.style_concepts"))
         assertTrue(engine.script.contains("expressive.emotion"))
@@ -577,7 +592,7 @@ class TtsHttpForwarderClientTest {
         val nextEdge = scriptEngineFromAssetFile("next_edge_proxy.js")
         val savedNextEdge = TtsEngineStore.scriptEngineFromScript(
             nextEdge.script
-                .replace("// @version 1.0.9", "// @version 1.0.5")
+                .replace("// @version 1.0.10", "// @version 1.0.5")
                 .replace(Regex("// @capabilities style_tags,emotion\\r?\\n"), "")
         )!!
         val updatedNextEdge = TtsEngineStore.updateDefaultScriptForTest(savedNextEdge, nextEdge)
@@ -588,7 +603,7 @@ class TtsHttpForwarderClientTest {
         val mimo = scriptEngineFromAssetFile("mimo_v25_tts.js")
         val savedMimo = TtsEngineStore.scriptEngineFromScript(
             mimo.script
-                .replace("// @version 1.0.1", "// @version 1.0.0")
+                .replace("// @version 1.0.2", "// @version 1.0.0")
                 .replace(
                     Regex("// @capabilities style_tags,emotion,emotion_intensity\\r?\\n"),
                     ""
@@ -604,7 +619,7 @@ class TtsHttpForwarderClientTest {
     fun nextEdgeProxyEndpointUpgradeReplacesOnlyRetiredDefault() {
         val builtIn = scriptEngineFromAssetFile("next_edge_proxy.js")
         val saved = TtsEngineStore.scriptEngineFromScript(
-            builtIn.script.replace("// @version 1.0.9", "// @version 1.0.6")
+            builtIn.script.replace("// @version 1.0.10", "// @version 1.0.6")
         )!!.copy(
             enabled = false,
             optionValues = mapOf(
@@ -640,7 +655,13 @@ class TtsHttpForwarderClientTest {
         assertTrue(engine.supportsCapability(TtsEngineCapability.SCENE_CONTEXT))
         assertTrue(engine.supportsCapability(TtsEngineCapability.PERFORMANCE_INSTRUCTION))
         assertFalse(engine.supportsCapability(TtsEngineCapability.PERSONA))
-        assertTrue(engine.script.contains("// @version 1.0.6"))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_SPEED))
+        assertTrue(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_VOLUME))
+        assertFalse(engine.supportsCapability(TtsEngineCapability.SYNTHESIS_PITCH))
+        assertFalse(engine.script.contains("key: \"synthesisSpeed\""))
+        assertTrue(engine.script.contains("speed: synthesisSpeed(params)"))
+        assertTrue(engine.script.contains("volume: synthesisVolume(params)"))
+        assertTrue(engine.script.contains("// @version 1.0.7"))
         assertTrue(engine.script.contains("https://api.stepfun.com/step_plan/v1/audio/speech"))
         assertFalse(engine.script.contains("\"https://api.stepfun.com/v1/audio/speech\""))
         assertTrue(engine.script.contains("key: \"outputFormat\""))

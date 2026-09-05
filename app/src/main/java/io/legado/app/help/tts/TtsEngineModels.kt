@@ -4,6 +4,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.annotations.SerializedName
 import io.legado.app.data.entities.BaseSource
+import kotlin.math.abs
 import kotlin.random.Random
 
 enum class TtsEngineType {
@@ -34,6 +35,48 @@ data class TtsVoice(
     @SerializedName("extra")
     val extra: JsonObject? = null
 )
+
+data class TtsSynthesisParams(
+    val speed: Int = 50,
+    val volume: Int = 50,
+    val pitch: Int = 50,
+) {
+    fun normalized(): TtsSynthesisParams = copy(
+        speed = speed.coerceIn(0, 100),
+        volume = volume.coerceIn(0, 100),
+        pitch = pitch.coerceIn(0, 100),
+    )
+}
+
+data class TtsVoicePlaybackParams(
+    @SerializedName("speed_ratio")
+    val speedRatio: Float = 1f,
+    @SerializedName("volume_gain")
+    val volumeGain: Float = 1f,
+    @SerializedName("pitch_ratio")
+    val pitchRatio: Float = 1f,
+) {
+    fun normalized(): TtsVoicePlaybackParams = copy(
+        speedRatio = speedRatio.coerceIn(MIN_SPEED_RATIO, MAX_SPEED_RATIO),
+        volumeGain = volumeGain.coerceIn(MIN_VOLUME_GAIN, MAX_VOLUME_GAIN),
+        pitchRatio = pitchRatio.coerceIn(MIN_PITCH_RATIO, MAX_PITCH_RATIO),
+    )
+
+    fun isNeutral(): Boolean =
+        abs(speedRatio - 1f) < CLOSE_THRESHOLD &&
+            abs(volumeGain - 1f) < CLOSE_THRESHOLD &&
+            abs(pitchRatio - 1f) < CLOSE_THRESHOLD
+
+    companion object {
+        const val MIN_SPEED_RATIO = 0.1f
+        const val MAX_SPEED_RATIO = 2f
+        const val MIN_VOLUME_GAIN = 0.1f
+        const val MAX_VOLUME_GAIN = 2f
+        const val MIN_PITCH_RATIO = 0.1f
+        const val MAX_PITCH_RATIO = 2f
+        private const val CLOSE_THRESHOLD = 0.0001f
+    }
+}
 
 data class TtsSynthesisContext(
     @SerializedName("mode")
@@ -92,6 +135,9 @@ object TtsEngineCapability {
     const val EMOTION = "emotion"
     const val EMOTION_INTENSITY = "emotion_intensity"
     const val CASTING_METADATA = "casting_metadata"
+    const val SYNTHESIS_SPEED = "synthesis_speed"
+    const val SYNTHESIS_VOLUME = "synthesis_volume"
+    const val SYNTHESIS_PITCH = "synthesis_pitch"
 }
 
 data class TtsVoiceStyle(
@@ -253,6 +299,8 @@ data class TtsEngineSetting(
     @Transient
     val runtimePitch: Int? = null,
     @Transient
+    val voiceParams: Map<String, TtsVoicePlaybackParams> = emptyMap(),
+    @Transient
     val runtimeVoices: List<TtsVoice>? = null,
     @Transient
     val lastVoiceUpdateTime: Long = 0L
@@ -290,6 +338,38 @@ data class TtsEngineSetting(
 
     fun effectivePitch(): Int {
         return (runtimePitch ?: defaultPitch).coerceIn(0, 100)
+    }
+
+    fun effectiveSynthesisParams(
+        baseSpeed: Int = effectiveSpeed(),
+        baseVolume: Int = effectiveVolume(),
+        basePitch: Int = effectivePitch(),
+    ): TtsSynthesisParams {
+        val normalized = TtsSynthesisParams(baseSpeed, baseVolume, basePitch).normalized()
+        if (!isScriptEngine) return normalized
+        return TtsSynthesisParams(
+            speed = normalized.speed.takeIf {
+                supportsCapability(TtsEngineCapability.SYNTHESIS_SPEED)
+            } ?: 50,
+            volume = normalized.volume.takeIf {
+                supportsCapability(TtsEngineCapability.SYNTHESIS_VOLUME)
+            } ?: 50,
+            pitch = normalized.pitch.takeIf {
+                supportsCapability(TtsEngineCapability.SYNTHESIS_PITCH)
+            } ?: 50,
+        )
+    }
+
+    fun voicePlaybackParams(voiceId: String?): TtsVoicePlaybackParams {
+        if (!isScriptEngine || voiceId.isNullOrBlank()) {
+            return TtsVoicePlaybackParams()
+        }
+        return voiceParams[voiceId]?.normalized() ?: TtsVoicePlaybackParams()
+    }
+
+    fun hasVoiceParams(voiceId: String?): Boolean {
+        return !voiceId.isNullOrBlank() &&
+            voiceParams[voiceId]?.normalized()?.isNeutral() == false
     }
 
     fun effectiveMaxConcurrency(globalLimit: Int): Int {

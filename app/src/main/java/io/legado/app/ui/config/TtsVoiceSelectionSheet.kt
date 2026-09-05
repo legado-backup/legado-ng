@@ -5,6 +5,7 @@ import android.graphics.Color as AndroidColor
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.activity.ComponentDialog
 import androidx.annotation.DrawableRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +65,7 @@ class TtsVoiceSelectionSheet(
     private var dialog: BottomSheetDialog? = null
     private var loadJob: Job? = null
     private var previewController: TtsVoicePreviewController? = null
+    private var voiceParamsDialog: ComponentDialog? = null
 
     fun show() {
         if (dialog != null || loadJob?.isActive == true) return
@@ -117,6 +119,7 @@ class TtsVoiceSelectionSheet(
                                 option.systemDefault,
                             )
                         },
+                        onEditParams = ::editVoiceParams,
                     )
                 }
             }
@@ -149,6 +152,8 @@ class TtsVoiceSelectionSheet(
             loadJob = null
             previewController?.release()
             previewController = null
+            voiceParamsDialog?.dismiss()
+            voiceParamsDialog = null
             dialog = null
         }
         bottomSheet.show()
@@ -158,6 +163,21 @@ class TtsVoiceSelectionSheet(
         loadJob?.cancel()
         loadJob = null
         dialog?.dismiss()
+    }
+
+    private fun editVoiceParams(option: TtsVoiceOption) {
+        if (option.systemDefault || !option.engine.isScriptEngine) return
+        voiceParamsDialog?.dismiss()
+        voiceParamsDialog = showTtsVoiceParamsDialog(
+            context = context,
+            engine = option.engine,
+            voice = option.voice,
+            onEngineUpdated = { updated ->
+                previewController?.refreshPlaybackParams(updated, option.voice)
+                state = state.withUpdatedEngine(updated)
+            },
+            onDismissed = { voiceParamsDialog = null },
+        )
     }
 
     private fun buildVoiceSnapshot(): TtsVoiceDrawerState {

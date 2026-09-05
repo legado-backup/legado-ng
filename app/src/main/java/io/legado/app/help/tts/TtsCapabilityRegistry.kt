@@ -29,7 +29,10 @@ object TtsCapabilityRegistry {
             1,
             setOf(TtsEngineCapability.EMOTION)
         ),
-        TtsCapabilitySpec(TtsEngineCapability.CASTING_METADATA, 1)
+        TtsCapabilitySpec(TtsEngineCapability.CASTING_METADATA, 1),
+        TtsCapabilitySpec(TtsEngineCapability.SYNTHESIS_SPEED, 1),
+        TtsCapabilitySpec(TtsEngineCapability.SYNTHESIS_VOLUME, 1),
+        TtsCapabilitySpec(TtsEngineCapability.SYNTHESIS_PITCH, 1)
     ).associateBy { it.id }
 
     fun canonicalId(raw: String): String = raw

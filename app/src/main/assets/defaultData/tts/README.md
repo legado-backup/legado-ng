@@ -37,7 +37,7 @@ Mossland 的内置发音人目录由 `scripts/generate_mossland_tts_catalog.py` 
 
 用户在试听时选择风格后，App 会在传给 `synthesize()` 的 `voice` 对象里附加 `style_id`、`style_value`、`style_tag` 和 `selected_style`。脚本需要合成风格参数时优先读取 `voice.style_value` 或 `voice.selected_style.value`；未选择时这些字段为空。
 
-脚本只有在确实读取并转换相应字段时，才应通过 `@capabilities` 声明多人朗读能力。当前支持：
+脚本只有在确实读取并转换相应字段时，才应通过 `@capabilities` 声明能力。当前支持：
 
 - `scene_context`：读取 `ctx.synthesis.scene`。
 - `performance_instruction`：读取 `ctx.synthesis.performance_instruction`，并隐含 `scene_context`。
@@ -45,8 +45,13 @@ Mossland 的内置发音人目录由 `scripts/generate_mossland_tts_catalog.py` 
 - `emotion`：读取 `ctx.synthesis.expressive.emotion`。
 - `emotion_intensity`：读取 `ctx.synthesis.expressive.intensity`，并隐含 `emotion`。
 - `casting_metadata`：发音人目录包含可供自动选角使用的服务商画像。只允许写入服务商明确提供或人工确认的信息；缺失字段保持为空，不做年龄或性别推断。
+- `synthesis_speed`：读取 `params.speed` 并转换为上游语速参数或等价指导。
+- `synthesis_volume`：读取 `params.volume` 并转换为上游音量参数。
+- `synthesis_pitch`：读取 `params.pitch` 并转换为上游音调参数。
 
 这些字段是供应商无关的中间语义，脚本负责映射成服务商的 style ID、标签或自然语言指导。用户手动选择的音色风格应优先于自动映射；不支持的字段不要声明，也不要直接透传给上游。
+
+三个合成参数统一为 `0..100`：`50` 必须精确表示服务商官方默认或不追加控制，向左表示降低，向右表示提高。App 对未声明的维度仍会传入 `50` 以保持 `params` 结构稳定，但界面滑轨会禁用，且该维度不会进入合成缓存键。脚本必须显式判空并限制范围，不能使用 `params.speed || 50`，否则合法值 `0` 会被错误替换。
 
 注意：`java.ajax()` 等 Java 侧能力返回到 Rhino 后，不要依赖 `typeof value === "string"` 判断。需要解析 JSON 时建议先写 `JSON.parse(String(value || "{}"))`。
 

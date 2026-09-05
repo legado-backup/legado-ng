@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -57,11 +58,15 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.legado.app.R
+import io.legado.app.ui.design.components.NgStatusTagSpec
+import io.legado.app.ui.design.components.NgStatusTagVariant
+import io.legado.app.ui.design.components.compose.NgStatusDot
 import io.legado.app.ui.design.components.compose.NgSwitchControl
 import io.legado.app.ui.design.theme.NgTheme
 import kotlinx.coroutines.launch
@@ -77,6 +82,8 @@ internal data class TtsEngineVoiceListItemUiModel(
     val tags: List<String>,
     val checked: Boolean,
     val dimmed: Boolean,
+    val canEditParams: Boolean = false,
+    val hasVoiceParams: Boolean = false,
 )
 
 @Immutable
@@ -96,6 +103,7 @@ internal sealed interface TtsEngineVoiceListAction {
 
     data class Preview(val voiceId: String) : TtsEngineVoiceListAction
     data class PreviewStyle(val voiceId: String) : TtsEngineVoiceListAction
+    data class EditParams(val voiceId: String) : TtsEngineVoiceListAction
 }
 
 @Composable
@@ -128,6 +136,9 @@ internal fun TtsEngineVoiceListScreen(
                 onPreviewStyle = {
                     onAction(TtsEngineVoiceListAction.PreviewStyle(item.id))
                 },
+                onEditParams = {
+                    onAction(TtsEngineVoiceListAction.EditParams(item.id))
+                },
             )
         }
     }
@@ -140,6 +151,7 @@ private fun TtsEngineVoiceListCard(
     onCheckedChange: (Boolean) -> Unit,
     onPreview: () -> Unit,
     onPreviewStyle: () -> Unit,
+    onEditParams: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -161,10 +173,16 @@ private fun TtsEngineVoiceListCard(
                 }
             )
             .border(0.6.dp, cardStrokeColor, shape)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = LocalIndication.current,
-                onClick = {},
+            .then(
+                if (item.canEditParams) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = LocalIndication.current,
+                        onClick = onEditParams,
+                    )
+                } else {
+                    Modifier
+                }
             )
             .padding(end = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -172,7 +190,7 @@ private fun TtsEngineVoiceListCard(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 18.dp),
+                .padding(start = 4.dp),
             verticalArrangement = Arrangement.Center,
         ) {
             Row(
@@ -182,6 +200,19 @@ private fun TtsEngineVoiceListCard(
                     .horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Box(
+                    modifier = Modifier.width(14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (item.hasVoiceParams) {
+                        NgStatusDot(
+                            spec = NgStatusTagSpec(
+                                text = stringResource(R.string.tts_voice_independent_tag),
+                                variant = NgStatusTagVariant.SUCCESS,
+                            ),
+                        )
+                    }
+                }
                 Text(
                     text = item.name,
                     color = Color(NgTheme.colors.onSurface),
@@ -218,6 +249,7 @@ private fun TtsEngineVoiceListCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(24.dp)
+                        .padding(start = 14.dp)
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,

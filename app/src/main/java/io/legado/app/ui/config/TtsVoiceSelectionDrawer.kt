@@ -52,12 +52,14 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.legado.app.R
+import io.legado.app.help.tts.TtsEngineSetting
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.ui.design.components.compose.NgBottomDrawerSurface
 import io.legado.app.ui.design.components.compose.NgDrawerContentCardStyle
@@ -84,6 +86,8 @@ internal data class TtsVoiceDrawerCard(
     val genderLabel: String?,
     val style: String?,
     val tags: List<String>,
+    val canEditParams: Boolean,
+    val hasVoiceParams: Boolean,
 )
 
 internal data class TtsVoiceDrawerState(
@@ -127,6 +131,27 @@ internal fun TtsVoiceOption.toDrawerCard(selected: Boolean): TtsVoiceDrawerCard 
         genderLabel = genderLabel,
         style = style,
         tags = tags,
+        canEditParams = !systemDefault && engine.isScriptEngine,
+        hasVoiceParams = !systemDefault && engine.hasVoiceParams(voice.id),
+    )
+}
+
+internal fun TtsVoiceDrawerState.withUpdatedEngine(
+    engine: TtsEngineSetting,
+): TtsVoiceDrawerState {
+    return copy(
+        groups = groups.map { group ->
+            if (group.engineId != engine.id) {
+                group
+            } else {
+                group.copy(
+                    engineName = engine.name,
+                    cards = group.cards.map { card ->
+                        card.option.copy(engine = engine).toDrawerCard(card.selected)
+                    },
+                )
+            }
+        },
     )
 }
 
@@ -144,6 +169,7 @@ internal fun TtsVoiceSelectionDrawerContent(
     contentCardStyle: NgDrawerContentCardStyle = NgDrawerContentCardStyle.LEGACY,
     onSelect: (TtsVoiceOption) -> Unit,
     onPreview: (TtsVoiceOption) -> Unit,
+    onEditParams: ((TtsVoiceOption) -> Unit)? = null,
     onRetryFetch: (() -> Unit)? = null,
 ) {
     val drawerHeight = (LocalConfiguration.current.screenHeightDp * 0.88f).dp
@@ -287,6 +313,9 @@ internal fun TtsVoiceSelectionDrawerContent(
                                     enableLongPressPreview = enableLongPressPreview,
                                     onSelect = { onSelect(card.option) },
                                     onPreview = { onPreview(card.option) },
+                                    onEditParams = onEditParams?.let { edit ->
+                                        { edit(card.option) }
+                                    },
                                 )
                             }
                         }
@@ -416,6 +445,7 @@ private fun TtsVoiceSelectionCard(
     enableLongPressPreview: Boolean,
     onSelect: () -> Unit,
     onPreview: () -> Unit,
+    onEditParams: (() -> Unit)?,
 ) {
     val cardClickModifier = if (enableLongPressPreview) {
         Modifier.combinedClickable(onClick = onSelect, onLongClick = onPreview)
@@ -446,6 +476,12 @@ private fun TtsVoiceSelectionCard(
                 TtsVoiceCardHeader(card)
                 TtsVoiceCardTags(card.tags)
             }
+            if (card.canEditParams && onEditParams != null) {
+                TtsVoiceCardParams(
+                    active = card.hasVoiceParams,
+                    onClick = onEditParams,
+                )
+            }
             TtsVoiceCardPreview(previewState, onPreview)
         }
         if (card.selected) {
@@ -460,6 +496,29 @@ private fun TtsVoiceSelectionCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TtsVoiceCardParams(
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_settings),
+            contentDescription = stringResource(R.string.tts_voice_params_action),
+            tint = Color(
+                if (active) NgTheme.colors.primary else NgTheme.colors.onSurface
+            ),
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

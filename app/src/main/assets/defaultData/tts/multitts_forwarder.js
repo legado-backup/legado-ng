@@ -1,6 +1,6 @@
 // @name MultiTTS·转发器
 // @schema 1
-// @version 1.0.3
+// @version 1.0.4
 // @uuid multitts_forwarder
 // @author Legado
 // @url http://localhost:8774
@@ -10,6 +10,7 @@
 // @defaultSpeed 50
 // @defaultVolume 50
 // @defaultPitch 50
+// @capabilities synthesis_speed,synthesis_volume,synthesis_pitch
 // @description 连接本地 MultiTTS 服务，动态获取发音人并通过 /forward 合成音频。
 
 function options() {
@@ -64,9 +65,9 @@ function parseMultiTtsVoices(body) {
 
 function synthesize(text, voice, params, options, ctx) {
     var query = [
-        "volume=" + encodeURIComponent(params.volume),
-        "speed=" + encodeURIComponent(params.speed),
-        "pitch=" + encodeURIComponent(params.pitch),
+        "volume=" + encodeURIComponent(normalizedParam(params, "volume")),
+        "speed=" + encodeURIComponent(normalizedParam(params, "speed")),
+        "pitch=" + encodeURIComponent(normalizedParam(params, "pitch")),
         "voice=" + encodeURIComponent(voice.id || ""),
         "text=" + encodeURIComponent(text)
     ].join("&");
@@ -77,4 +78,10 @@ function synthesize(text, voice, params, options, ctx) {
         timeout: Number(options.timeout || 30),
         retry: 1
     };
+}
+
+function normalizedParam(params, key) {
+    var value = params && params[key] != null ? Number(params[key]) : 50;
+    if (isNaN(value)) value = 50;
+    return Math.max(0, Math.min(100, Math.round(value)));
 }

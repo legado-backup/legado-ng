@@ -46,6 +46,18 @@ internal fun mergeTtsEngineOptionValues(
     }
 }
 
+internal fun resolveTtsEngineFormName(
+    targetEngineId: String,
+    currentFormEngineId: String,
+    currentFormName: String?,
+    targetEngineName: String,
+): String {
+    return currentFormName
+        ?.trim()
+        ?.takeIf { currentFormEngineId == targetEngineId && it.isNotEmpty() }
+        ?: targetEngineName
+}
+
 internal fun buildTtsEngineFormOptions(
     currentValue: String,
     options: List<TtsEngineFormOption>

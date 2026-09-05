@@ -273,6 +273,7 @@ abstract class BaseReadAloudService : BaseService(),
             IntentAction.upTtsSpeechRate -> upSpeechRate(true)
             IntentAction.prepareTtsCasting -> prepareTtsCasting()
             IntentAction.refreshTtsRoute -> refreshTtsRoute()
+            IntentAction.refreshTtsPlaybackParams -> refreshTtsPlaybackParams()
             IntentAction.prevParagraph -> prevP()
             IntentAction.nextParagraph -> nextP()
             IntentAction.prev -> prevChapter()
@@ -572,6 +573,8 @@ abstract class BaseReadAloudService : BaseService(),
     abstract fun upSpeechRate(reset: Boolean = false)
 
     open fun refreshTtsRoute() = Unit
+
+    open fun refreshTtsPlaybackParams() = Unit
 
     open fun prepareTtsCasting() = Unit
 

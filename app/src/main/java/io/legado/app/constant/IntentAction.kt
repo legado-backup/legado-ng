@@ -15,6 +15,7 @@ object IntentAction {
     const val upTtsSpeechRate = "upTtsSpeechRate"
     const val prepareTtsCasting = "prepareTtsCasting"
     const val refreshTtsRoute = "refreshTtsRoute"
+    const val refreshTtsPlaybackParams = "refreshTtsPlaybackParams"
     const val upTtsProgress = "upTtsProgress"
     const val adjustProgress = "adjustProgress"
     const val setSpeed = "setSpeed"
