@@ -94,6 +94,7 @@ internal class NgViewLiquidGlassRenderer(
 
     fun draw(canvas: Canvas): Boolean {
         if (!isEnabled() || owner.width <= 0 || owner.height <= 0) return false
+        if (!canvas.isHardwareAccelerated) return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
         val source = sourceView ?: return false
         drawBackdrop(canvas, source)
