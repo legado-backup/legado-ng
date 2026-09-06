@@ -265,7 +265,7 @@ internal object Md3ThemeImportManager {
                 path = resolveInstalledAsset(packageRoot, backgrounds.dark.archivePath),
                 blur = backgrounds.dark.blur,
             ),
-            transparentAppBars = context.getPrefBoolean(PreferKey.tNavBar, false),
+            transparentAppBars = true,
             barProfile = materializeBarProfile(preview.spec),
             packageRootPath = packageRoot?.absolutePath,
             resourceProfile = NgThemeResourceProfile(

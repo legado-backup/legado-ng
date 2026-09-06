@@ -155,7 +155,7 @@ abstract class BaseReadBookActivity :
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.run {
-                if (toolBarHide && ReadBookConfig.hideNavigationBar) {
+                if (AppConfig.hideSystemNavigationBar) {
                     hide(WindowInsets.Type.navigationBars())
                 } else {
                     show(WindowInsets.Type.navigationBars())
@@ -194,11 +194,9 @@ abstract class BaseReadBookActivity :
         if (!isInMultiWindow) {
             flag = flag or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         }
-        if (ReadBookConfig.hideNavigationBar) {
+        if (AppConfig.hideSystemNavigationBar) {
             flag = flag or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            if (toolBarHide) {
-                flag = flag or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            }
+            flag = flag or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
         }
         if (ReadBookConfig.hideStatusBar && toolBarHide) {
             flag = flag or View.SYSTEM_UI_FLAG_FULLSCREEN

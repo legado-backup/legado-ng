@@ -57,6 +57,7 @@ import io.legado.app.utils.startActivity
 import io.legado.app.utils.statusBarHeight
 import io.legado.app.utils.sysConfiguration
 import io.legado.app.utils.toastOnUi
+import io.legado.app.utils.applyAppNavigationBarVisibility
 import kotlinx.coroutines.launch
 import splitties.init.appCtx
 import java.io.FileOutputStream
@@ -135,7 +136,7 @@ class ThemeConfigFragment : BaseFragment(R.layout.fragment_theme_config) {
                             ::saveBookshelfFloatingDockTransparency,
                         onBookshelfFloatingDockSearchPositionSelected =
                             ::setBookshelfFloatingDockSearchPosition,
-                        onTransparentAppBarsChanged = ::setTransparentAppBars,
+                        onHideSystemNavigationBarChanged = ::setHideSystemNavigationBar,
                         onAutoRefreshChanged = ::setAutoRefresh,
                         onOnlyUpdateReadChanged = ::setOnlyUpdateRead,
                         onDefaultToReadChanged = ::setDefaultToRead,
@@ -267,7 +268,7 @@ class ThemeConfigFragment : BaseFragment(R.layout.fragment_theme_config) {
                 AppConfig.bookshelfFloatingDockTransparency,
             bookshelfFloatingDockSearchPosition =
                 AppConfig.bookshelfFloatingDockSearchPosition,
-            transparentAppBars = getPrefBoolean(PreferKey.tNavBar, false),
+            hideSystemNavigationBar = AppConfig.hideSystemNavigationBar,
             autoRefresh = AppConfig.autoRefreshBook,
             onlyUpdateRead = AppConfig.onlyUpdateRead,
             defaultToRead = getPrefBoolean(PreferKey.defaultToRead, false),
@@ -510,12 +511,11 @@ class ThemeConfigFragment : BaseFragment(R.layout.fragment_theme_config) {
         screenState = screenState.copy(bookshelfFloatingDockSearchPosition = position)
     }
 
-    private fun setTransparentAppBars(enabled: Boolean) {
-        if (screenState.transparentAppBars == enabled) return
-        putPrefBoolean(PreferKey.tNavBar, enabled)
-        screenState = screenState.copy(transparentAppBars = enabled)
-        ThemeConfig.applyTheme(requireContext())
-        recreateActivities()
+    private fun setHideSystemNavigationBar(enabled: Boolean) {
+        if (screenState.hideSystemNavigationBar == enabled) return
+        AppConfig.hideSystemNavigationBar = enabled
+        screenState = screenState.copy(hideSystemNavigationBar = enabled)
+        requireActivity().applyAppNavigationBarVisibility()
     }
 
     private fun setAutoRefresh(enabled: Boolean) {

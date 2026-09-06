@@ -26,6 +26,8 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -116,11 +118,16 @@ internal abstract class ReadAloudComposeBottomSheet : BottomSheetDialogFragment(
     override fun onStart() {
         super.onStart()
         dialog?.window?.apply {
+            WindowCompat.setDecorFitsSystemWindows(this, false)
             setBackgroundDrawableResource(R.color.transparent)
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             attributes = attributes.apply { dimAmount = 0.22f }
             decorView.setPadding(0, 0, 0, 0)
         }
+        dialog?.findViewById<View>(com.google.android.material.R.id.container)
+            ?.fitsSystemWindows = false
+        dialog?.findViewById<View>(com.google.android.material.R.id.coordinator)
+            ?.fitsSystemWindows = false
         val sheet = dialog?.findViewById<View>(
             com.google.android.material.R.id.design_bottom_sheet
         ) ?: return
@@ -135,6 +142,7 @@ internal abstract class ReadAloudComposeBottomSheet : BottomSheetDialogFragment(
             isDraggableOnNestedScroll = true
             state = BottomSheetBehavior.STATE_EXPANDED
         }
+        ViewCompat.requestApplyInsets(sheet)
     }
 }
 

@@ -615,7 +615,7 @@ object ThemeConfig {
             context.putPrefString(PreferKey.bgImageN, darkBackground)
             context.putPrefInt(PreferKey.bgImageBlurring, theme.lightBackground.blur)
             context.putPrefInt(PreferKey.bgImageNBlurring, theme.darkBackground.blur)
-            context.putPrefBoolean(PreferKey.tNavBar, theme.transparentAppBars)
+            context.putPrefBoolean(PreferKey.tNavBar, true)
             theme.barProfile?.normalized()?.let { bars ->
                 bars.useFloatingBottomBar?.let {
                     context.putPrefBoolean(PreferKey.useFloatingBottomBar, it)
@@ -724,8 +724,6 @@ object ThemeConfig {
             context.getPrefInt(PreferKey.cBackground, context.getCompatColor(R.color.md_grey_100))
         val bBackground =
             context.getPrefInt(PreferKey.cBBackground, context.getCompatColor(R.color.md_grey_200))
-        val transparentNavBar =
-            context.getPrefBoolean(PreferKey.tNavBar, false)
         val bgImgPath =
             context.getPrefString(PreferKey.bgImage)
         val bgImgBlur =
@@ -738,7 +736,7 @@ object ThemeConfig {
             accentColor = "#${accent.hexString}",
             backgroundColor = "#${background.hexString}",
             bottomBackground = "#${bBackground.hexString}",
-            transparentNavBar = transparentNavBar,
+            transparentNavBar = true,
             backgroundImgPath = bgImgPath,
             backgroundImgBlur = bgImgBlur
         )
@@ -764,8 +762,6 @@ object ThemeConfig {
             context.getPrefInt(PreferKey.cNBackground, context.getCompatColor(R.color.md_grey_900))
         val bBackground =
             context.getPrefInt(PreferKey.cNBBackground, context.getCompatColor(R.color.md_grey_850))
-        val transparentNavBar =
-            context.getPrefBoolean(PreferKey.tNavBar, false)
         val bgImgPath =
             context.getPrefString(PreferKey.bgImageN)
         val bgImgBlur =
@@ -777,7 +773,7 @@ object ThemeConfig {
             accentColor = "#${accent.hexString}",
             backgroundColor = "#${background.hexString}",
             bottomBackground = "#${bBackground.hexString}",
-            transparentNavBar = transparentNavBar,
+            transparentNavBar = true,
             backgroundImgPath = bgImgPath,
             backgroundImgBlur = bgImgBlur
         )
@@ -804,7 +800,7 @@ object ThemeConfig {
                     .accentColor(Color.BLACK)
                     .backgroundColor(Color.WHITE)
                     .bottomBackground(Color.WHITE)
-                    .transparentNavBar(false)
+                    .transparentNavBar(true)
                     .apply()
             return@with
         }
@@ -828,9 +824,7 @@ object ThemeConfig {
             .accentColor(colors.primary)
             .backgroundColor(colors.background)
             .bottomBackground(manual?.labelContainer ?: colors.surfaceContainerLow)
-            .transparentNavBar(
-                softGradient || dynamicScene || getPrefBoolean(PreferKey.tNavBar, false)
-            )
+            .transparentNavBar(true)
             .apply()
     }
 

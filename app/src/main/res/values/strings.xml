@@ -765,8 +765,8 @@
     <string name="listening_motion_intensity">Effect intensity</string>
     <string name="listening_motion_intensity_value">%1$d%%</string>
     <string name="playing_timer">Playing(%d min left)</string>
-    <string name="ps_hide_navigation_bar">Hide virtual buttons when reading</string>
-    <string name="pt_hide_navigation_bar">Hide navigation bar</string>
+    <string name="ps_hide_navigation_bar">Hide the system navigation bar throughout the app</string>
+    <string name="pt_hide_navigation_bar">Hide system navigation bar</string>
     <string name="re_navigation_bar_color">Navigation bar color</string>
     <string name="scoring">Rating</string>
     <string name="send_mail">Email</string>
@@ -2210,8 +2210,6 @@
     <string name="cache_first">优先加载缓存</string>
     <string name="rule_sub_content">副文规则（subContent）</string>
     <string name="system_auto">跟随系统</string>
-    <string name="transparent_app_bars">Transparent app bars</string>
-    <string name="transparent_app_bars_summary">Use transparent backgrounds for app bars</string>
     <string name="day_nav_bar_immersion">开启后白天操作栏透明，背景图透到顶部，主色调暂时禁用</string>
     <string name="night_nav_bar_immersion">开启后夜间操作栏透明，背景图透到顶部，主色调暂时禁用</string>
     <string name="is_system_tts_no_export">无法导出系统tts</string>

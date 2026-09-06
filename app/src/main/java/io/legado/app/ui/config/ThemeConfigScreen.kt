@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -101,7 +102,7 @@ internal data class ThemeConfigScreenState(
         BookshelfFloatingDockConfig.DEFAULT_TRANSPARENCY_PERCENT,
     val bookshelfFloatingDockSearchPosition: BookshelfFloatingDockSearchPosition =
         BookshelfFloatingDockSearchPosition.LEFT,
-    val transparentAppBars: Boolean = false,
+    val hideSystemNavigationBar: Boolean = true,
     val autoRefresh: Boolean = false,
     val onlyUpdateRead: Boolean = false,
     val defaultToRead: Boolean = false,
@@ -152,7 +153,7 @@ internal fun ThemeConfigScreen(
     onBookshelfFloatingDockTransparencyChangeFinished: () -> Unit,
     onBookshelfFloatingDockSearchPositionSelected:
         (BookshelfFloatingDockSearchPosition) -> Unit,
-    onTransparentAppBarsChanged: (Boolean) -> Unit,
+    onHideSystemNavigationBarChanged: (Boolean) -> Unit,
     onAutoRefreshChanged: (Boolean) -> Unit,
     onOnlyUpdateReadChanged: (Boolean) -> Unit,
     onDefaultToReadChanged: (Boolean) -> Unit,
@@ -187,6 +188,7 @@ internal fun ThemeConfigScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
             .padding(horizontal = 16.dp)
             .padding(top = 16.dp, bottom = 24.dp)
     ) {
@@ -681,12 +683,14 @@ internal fun ThemeConfigScreen(
                 }
             }
                 NgSettingsItem(
-                title = stringResource(R.string.transparent_app_bars),
-                summary = stringResource(R.string.transparent_app_bars_summary),
+                title = stringResource(R.string.pt_hide_navigation_bar),
+                summary = stringResource(R.string.ps_hide_navigation_bar),
                 trailing = NgSettingsTrailing.SWITCH,
-                checked = state.transparentAppBars,
-                onCheckedChange = onTransparentAppBarsChanged,
-                onClick = { onTransparentAppBarsChanged(!state.transparentAppBars) }
+                checked = state.hideSystemNavigationBar,
+                onCheckedChange = onHideSystemNavigationBarChanged,
+                onClick = {
+                    onHideSystemNavigationBarChanged(!state.hideSystemNavigationBar)
+                }
             )
             }
             if (

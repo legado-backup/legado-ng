@@ -336,7 +336,6 @@ object Restore {
             shareLayout = appCtx.getPrefBoolean(PreferKey.shareLayout)
             reloadGlobalReadFloatingColorPreferences()
             hideStatusBar = appCtx.getPrefBoolean(PreferKey.hideStatusBar)
-            hideNavigationBar = appCtx.getPrefBoolean(PreferKey.hideNavigationBar)
             autoReadSpeed = appCtx.getPrefInt(
                 PreferKey.autoReadSpeed,
                 ReadBookConfig.defaultAutoReadSpeed,

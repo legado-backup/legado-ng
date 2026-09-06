@@ -37,6 +37,7 @@ import io.legado.app.ui.design.components.compose.NgDrawerDefaults
 import io.legado.app.ui.widget.dialog.NgLongListBottomSheet
 import io.legado.app.ui.widget.dialog.createNgBottomDrawerViewHost
 import io.legado.app.utils.applyTint
+import io.legado.app.utils.showWithAppNavigationBarVisibility
 
 object AiAssistantConfigUi {
 
@@ -239,7 +240,7 @@ object AiAssistantConfigUi {
             sheet.setBackgroundColor(Color.TRANSPARENT)
             BottomSheetBehavior.from(sheet).state = BottomSheetBehavior.STATE_EXPANDED
         }
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
     }
 
     fun showInternalMcpSheet(
@@ -392,7 +393,7 @@ object AiAssistantConfigUi {
             sheet.setBackgroundColor(Color.TRANSPARENT)
             BottomSheetBehavior.from(sheet).state = BottomSheetBehavior.STATE_EXPANDED
         }
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
     }
 
     private fun renderModelOptions(

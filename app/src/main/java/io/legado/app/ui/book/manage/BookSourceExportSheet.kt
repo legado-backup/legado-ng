@@ -26,6 +26,7 @@ import io.legado.app.ui.design.components.compose.NgCompactDrawerSelectionPanel
 import io.legado.app.ui.design.components.compose.NgDrawerDragHandle
 import io.legado.app.ui.design.components.compose.NgDrawerDragHandleVariant
 import io.legado.app.ui.design.theme.NgAppTheme
+import io.legado.app.utils.showWithAppNavigationBarVisibility
 
 /** 书架管理导出书源的分享／本地保存目标抽屉。 */
 class BookSourceExportSheet(
@@ -59,7 +60,7 @@ class BookSourceExportSheet(
                 state = BottomSheetBehavior.STATE_EXPANDED
             }
         }
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
     }
 
     @Composable

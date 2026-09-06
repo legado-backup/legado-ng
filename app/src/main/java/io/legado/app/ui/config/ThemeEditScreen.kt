@@ -49,7 +49,6 @@ import io.legado.app.ui.design.components.compose.NgFloatingTabBar
 import io.legado.app.ui.design.components.compose.NgFloatingTabSpec
 import io.legado.app.ui.design.components.compose.NgFormGroup
 import io.legado.app.ui.design.components.compose.NgFormGroupDivider
-import io.legado.app.ui.design.components.compose.NgFormSwitchSettingRow
 import io.legado.app.ui.design.theme.NgTheme
 import java.io.File
 import kotlin.math.roundToInt
@@ -81,15 +80,6 @@ internal fun ThemeEditScreen(
                             enabled = false,
                         )
                     }
-                    NgFormGroupDivider()
-                    NgFormSwitchSettingRow(
-                        title = stringResource(R.string.transparent_app_bars),
-                        summary = stringResource(R.string.transparent_app_bars_summary),
-                        checked = theme.transparentAppBars,
-                        onCheckedChange = {
-                            onThemeChanged(theme.copy(transparentAppBars = it))
-                        }
-                    )
                     NgFormGroupDivider()
                     ThemeBackgroundItem(
                         dark = false,

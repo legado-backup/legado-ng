@@ -885,7 +885,7 @@ class ReadBookActivity : BaseReadBookActivity(),
      */
     override fun showTextActionMenu() {
         val navigationBarHeight =
-            if (!ReadBookConfig.hideNavigationBar && navigationBarGravity == Gravity.BOTTOM)
+            if (!AppConfig.hideSystemNavigationBar && navigationBarGravity == Gravity.BOTTOM)
                 binding.navigationBar.height else 0
         textActionMenu.show(
             binding.textMenuPosition,
@@ -2898,7 +2898,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.readView.cancelSelect()
         activeTextHighlight = bookmark
         val navigationBarHeight =
-            if (!ReadBookConfig.hideNavigationBar && navigationBarGravity == Gravity.BOTTOM) {
+            if (!AppConfig.hideSystemNavigationBar && navigationBarGravity == Gravity.BOTTOM) {
                 binding.navigationBar.height
             } else {
                 0
@@ -3024,7 +3024,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             popupAction.dismiss()
         }
         val navigationBarHeight =
-            if (!ReadBookConfig.hideNavigationBar && navigationBarGravity == Gravity.BOTTOM)
+            if (!AppConfig.hideSystemNavigationBar && navigationBarGravity == Gravity.BOTTOM)
                 binding.navigationBar.height else 0
         popupAction.showAtLocation(
             binding.readView, Gravity.BOTTOM or Gravity.LEFT, x.toInt(),

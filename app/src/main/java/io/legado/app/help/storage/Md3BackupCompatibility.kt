@@ -45,6 +45,7 @@ internal object Md3BackupCompatibility {
     private val booleanPreferenceKeys = setOf(
         PreferKey.hideStatusBar,
         PreferKey.hideNavigationBar,
+        PreferKey.hideSystemNavigationBar,
         PreferKey.readBodyToLh,
         PreferKey.textFullJustify,
         PreferKey.textBottomJustify,

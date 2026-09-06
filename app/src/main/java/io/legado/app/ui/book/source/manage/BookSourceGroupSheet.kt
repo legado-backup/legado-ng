@@ -60,6 +60,7 @@ import io.legado.app.ui.design.components.compose.NgFormFieldVariant
 import io.legado.app.ui.design.theme.NgAppTheme
 import io.legado.app.ui.design.theme.NgTheme
 import io.legado.app.utils.cnCompare
+import io.legado.app.utils.showWithAppNavigationBarVisibility
 import io.legado.app.utils.splitNotBlank
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
@@ -133,7 +134,7 @@ internal class BookSourceAddGroupSheet(
                 state = BottomSheetBehavior.STATE_EXPANDED
             }
         }
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
     }
 
     @Composable

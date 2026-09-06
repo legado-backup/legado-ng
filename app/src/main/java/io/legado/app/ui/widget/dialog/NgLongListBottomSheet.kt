@@ -22,6 +22,7 @@ import io.legado.app.ui.design.components.compose.NgDrawerContentCardStyle
 import io.legado.app.ui.design.components.compose.NgDrawerDefaults
 import io.legado.app.ui.design.components.view.NgSearchBar
 import io.legado.app.utils.dpToPx
+import io.legado.app.utils.showWithAppNavigationBarVisibility
 
 class NgLongListBottomSheet(
     private val context: Context,
@@ -392,7 +393,7 @@ class NgLongListBottomSheet(
     }
 
     fun show() {
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
     }
 
     fun dismiss() {

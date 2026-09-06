@@ -48,6 +48,7 @@ object PreferKey {
     const val clickActionBC = "clickActionBottomCenter"
     const val clickActionBR = "clickActionBottomRight"
     const val hideNavigationBar = "hideNavigationBar"
+    const val hideSystemNavigationBar = "hideSystemNavigationBar"
     const val precisionSearch = "precisionSearch"
     const val searchBlockSourceDialogs = "searchBlockSourceDialogs"
     const val autoLoadBookOtherWorks = "autoLoadBookOtherWorks"

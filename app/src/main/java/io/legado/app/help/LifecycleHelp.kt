@@ -3,8 +3,16 @@ package io.legado.app.help
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import android.view.View
+import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.FragmentManager
 import io.legado.app.base.BaseService
 import io.legado.app.utils.LogUtils
+import io.legado.app.utils.applyAppNavigationBarVisibility
+import io.legado.app.utils.completeAppNavigationBarVisibility
+import io.legado.app.utils.prepareAppNavigationBarVisibility
 import java.lang.ref.WeakReference
 
 /**
@@ -18,6 +26,22 @@ object LifecycleHelp : Application.ActivityLifecycleCallbacks {
     private val activities: MutableList<WeakReference<Activity>> = arrayListOf()
     private val services: MutableList<WeakReference<BaseService>> = arrayListOf()
     private var appFinishedListener: (() -> Unit)? = null
+    private val fragmentLifecycleCallbacks = object : FragmentManager.FragmentLifecycleCallbacks() {
+        override fun onFragmentViewCreated(
+            fragmentManager: FragmentManager,
+            fragment: Fragment,
+            view: View,
+            savedInstanceState: Bundle?,
+        ) {
+            (fragment as? DialogFragment)?.dialog?.window
+                ?.prepareAppNavigationBarVisibility()
+        }
+
+        override fun onFragmentStarted(fragmentManager: FragmentManager, fragment: Fragment) {
+            (fragment as? DialogFragment)?.dialog?.window
+                ?.completeAppNavigationBarVisibility()
+        }
+    }
 
     fun activitySize(): Int {
         return activities.size
@@ -63,6 +87,7 @@ object LifecycleHelp : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityResumed(activity: Activity) {
         LogUtils.d(TAG, "${activity::class.simpleName} onResume")
+        activity.applyAppNavigationBarVisibility()
     }
 
     override fun onActivityStarted(activity: Activity) {
@@ -71,6 +96,8 @@ object LifecycleHelp : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityDestroyed(activity: Activity) {
         LogUtils.d(TAG, "${activity::class.simpleName} onDestroy")
+        (activity as? FragmentActivity)?.supportFragmentManager
+            ?.unregisterFragmentLifecycleCallbacks(fragmentLifecycleCallbacks)
         for (temp in activities) {
             if (temp.get() != null && temp.get() === activity) {
                 activities.remove(temp)
@@ -93,6 +120,9 @@ object LifecycleHelp : Application.ActivityLifecycleCallbacks {
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
         LogUtils.d(TAG, "${activity::class.simpleName} onCreate")
         activities.add(WeakReference(activity))
+        (activity as? FragmentActivity)?.supportFragmentManager
+            ?.registerFragmentLifecycleCallbacks(fragmentLifecycleCallbacks, true)
+        activity.applyAppNavigationBarVisibility()
     }
 
     @Synchronized

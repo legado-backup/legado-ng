@@ -63,6 +63,7 @@ import io.legado.app.ui.design.components.compose.NgManagementListCard
 import io.legado.app.ui.design.components.compose.ngDrawerContentCardColor
 import io.legado.app.ui.design.theme.NgAppTheme
 import io.legado.app.ui.design.theme.NgTheme
+import io.legado.app.utils.showWithAppNavigationBarVisibility
 
 /**
  * 多角色 TTS 引擎的共用 Compose 抽屉主体。
@@ -239,7 +240,7 @@ class TtsEngineSelectionSheet(
             }
         }
         bottomSheet.setOnDismissListener { dialog = null }
-        bottomSheet.show()
+        bottomSheet.showWithAppNavigationBarVisibility()
     }
 
     fun dismiss() {

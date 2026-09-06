@@ -132,7 +132,7 @@ class PageView(context: Context) : FrameLayout(context) {
     }
 
     fun upNavigationBar() {
-        binding.vwNavigationBar.isGone = ReadBookConfig.hideNavigationBar
+        binding.vwNavigationBar.isGone = AppConfig.hideSystemNavigationBar
     }
 
     fun upPaddingDisplayCutouts() {

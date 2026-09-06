@@ -2,6 +2,7 @@ package io.legado.app.utils
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.Dialog
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -9,6 +10,7 @@ import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -21,6 +23,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 import androidx.fragment.app.DialogFragment
 import io.legado.app.R
+import io.legado.app.help.config.AppConfig
 import io.legado.app.ui.widget.dialog.TextDialog
 
 inline fun <reified T : DialogFragment> AppCompatActivity.showDialogFragment(
@@ -189,12 +192,75 @@ fun Activity.keepScreenOn(on: Boolean) {
 fun Activity.toggleSystemBar(show: Boolean) {
     WindowCompat.getInsetsController(window, window.decorView).run {
         if (show) {
-            show(WindowInsetsCompat.Type.systemBars())
+            show(WindowInsetsCompat.Type.statusBars())
+            if (AppConfig.hideSystemNavigationBar) {
+                hide(WindowInsetsCompat.Type.navigationBars())
+            } else {
+                show(WindowInsetsCompat.Type.navigationBars())
+            }
         } else {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
+}
+
+fun Activity.applyAppNavigationBarVisibility() {
+    window.applyAppNavigationBarVisibility()
+}
+
+fun Window.applyAppNavigationBarVisibility() {
+    WindowCompat.getInsetsController(this, decorView).run {
+        if (AppConfig.hideSystemNavigationBar) {
+            hide(WindowInsetsCompat.Type.navigationBars())
+            systemBarsBehavior = BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            show(WindowInsetsCompat.Type.navigationBars())
+        }
+    }
+}
+
+fun Window.prepareAppNavigationBarVisibility() {
+    if (!AppConfig.hideSystemNavigationBar) return
+    addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+    extendBehindHiddenNavigationBar()
+    applyAppNavigationBarVisibility()
+}
+
+fun Window.completeAppNavigationBarVisibility() {
+    if (AppConfig.hideSystemNavigationBar) {
+        extendBehindHiddenNavigationBar()
+    }
+    applyAppNavigationBarVisibility()
+    if (AppConfig.hideSystemNavigationBar) {
+        clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+        decorView.requestApplyInsets()
+    }
+}
+
+@Suppress("DEPRECATION")
+private fun Window.extendBehindHiddenNavigationBar() {
+    // Material 1.13 uses this alpha as its edge-to-edge layout signal when a
+    // BottomSheetDialog is attached. It is not used to tint the system bar.
+    navigationBarColor = Color.TRANSPARENT
+    WindowCompat.setDecorFitsSystemWindows(this, false)
+
+    val materialContainer = decorView.findViewById<View>(
+        com.google.android.material.R.id.container
+    ) ?: return
+    materialContainer.fitsSystemWindows = false
+    decorView.findViewById<View>(com.google.android.material.R.id.coordinator)
+        ?.fitsSystemWindows = false
+    setLayout(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        ViewGroup.LayoutParams.MATCH_PARENT
+    )
+}
+
+fun Dialog.showWithAppNavigationBarVisibility() {
+    window?.prepareAppNavigationBarVisibility()
+    show()
+    window?.completeAppNavigationBarVisibility()
 }
 
 /////以下方法需要在View完全被绘制出来之后调用，否则判断不了,在比如 onWindowFocusChanged（）方法中可以得到正确的结果/////

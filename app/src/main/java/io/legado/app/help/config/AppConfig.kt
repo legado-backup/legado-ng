@@ -272,6 +272,12 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
 
     val immNavigationBar = true
 
+    var hideSystemNavigationBar: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.hideSystemNavigationBar, true)
+        set(value) {
+            appCtx.putPrefBoolean(PreferKey.hideSystemNavigationBar, value)
+        }
+
     val useFloatingBottomBar: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.useFloatingBottomBar, false)
 

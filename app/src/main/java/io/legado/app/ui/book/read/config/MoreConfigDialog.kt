@@ -165,11 +165,6 @@ class MoreConfigDialog : BaseComposeDialogFragment() {
                 postEvent(EventBus.UP_CONFIG, arrayListOf(0, 2))
             }
 
-            PreferKey.hideNavigationBar -> {
-                ReadBookConfig.hideNavigationBar = booleanValue == true
-                postEvent(EventBus.UP_CONFIG, arrayListOf(0, 2))
-            }
-
             PreferKey.keepLight -> postEvent(key, true)
             PreferKey.textSelectAble -> postEvent(key, booleanValue == true)
             PreferKey.screenOrientation -> readActivity?.setOrientation()
@@ -316,7 +311,6 @@ class MoreConfigDialog : BaseComposeDialogFragment() {
         val context = requireContext()
         val booleanDefaults = linkedMapOf(
             PreferKey.hideStatusBar to false,
-            PreferKey.hideNavigationBar to false,
             PreferKey.readBodyToLh to true,
             PreferKey.paddingDisplayCutouts to false,
             PreferKey.showBrightnessView to true,

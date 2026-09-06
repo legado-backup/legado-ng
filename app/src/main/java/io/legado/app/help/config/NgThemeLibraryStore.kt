@@ -178,7 +178,7 @@ internal data class NgManagedTheme(
     @SerializedName("darkBackground")
     val darkBackground: NgThemeBackground = NgThemeBackground(),
     @SerializedName("transparentAppBars")
-    val transparentAppBars: Boolean = false,
+    val transparentAppBars: Boolean = true,
     @SerializedName("barProfile")
     val barProfile: NgThemeBarProfile? = null,
     @SerializedName("packageRootPath") val packageRootPath: String? = null,
@@ -198,6 +198,7 @@ internal data class NgManagedTheme(
         colors = colors.normalized(),
         lightBackground = lightBackground.copy(blur = lightBackground.blur.coerceIn(0, 25)),
         darkBackground = darkBackground.copy(blur = darkBackground.blur.coerceIn(0, 25)),
+        transparentAppBars = true,
         barProfile = barProfile?.normalized(),
         resourceProfile = resourceProfile?.normalized() ?: NgThemeResourceProfile(),
         coverProfile = coverProfile?.normalized(),
@@ -351,7 +352,7 @@ internal object NgThemeLibraryStore {
                 path = context.getPrefString(PreferKey.bgImageN),
                 blur = context.getPrefInt(PreferKey.bgImageNBlurring, 0)
             ),
-            transparentAppBars = context.getPrefBoolean(PreferKey.tNavBar, false),
+            transparentAppBars = true,
             barProfile = currentBarProfile(context),
             packageRootPath = active?.packageRootPath,
             resourceProfile = active?.resourceProfile ?: NgThemeResourceProfile(),
@@ -714,7 +715,7 @@ internal object NgBuiltInThemes {
         darkBackgroundPath: String? = null,
         lightTopBarTextMode: NgTopBarTextMode = NgTopBarTextMode.AUTO,
         darkTopBarTextMode: NgTopBarTextMode = NgTopBarTextMode.AUTO,
-        transparentAppBars: Boolean = false
+        transparentAppBars: Boolean = true
     ): NgManagedTheme {
         val light = manualColors(
             primary = lightPrimary,

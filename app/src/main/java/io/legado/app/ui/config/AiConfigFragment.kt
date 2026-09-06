@@ -60,6 +60,7 @@ import io.legado.app.utils.SelectFileContract
 import io.legado.app.utils.hideSoftInput
 import io.legado.app.utils.share
 import io.legado.app.utils.showDialogFragment
+import io.legado.app.utils.showWithAppNavigationBarVisibility
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -879,7 +880,7 @@ class AiConfigFragment : BaseFragment(R.layout.fragment_ai_config), ConfigBackHa
             }
         )
         configureModelEditSheet(dialog)
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
     }
 
     private fun initFeatureSettingsCompose() {
@@ -2018,7 +2019,7 @@ class AiConfigFragment : BaseFragment(R.layout.fragment_ai_config), ConfigBackHa
                 state = BottomSheetBehavior.STATE_EXPANDED
             }
         }
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
     }
 
     private fun showPurifyModelSelectDialog() {

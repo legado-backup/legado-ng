@@ -213,12 +213,6 @@ private fun InterfaceSettingsPage(
         )
         ReadMoreDivider(contentColor)
         SwitchSettingRow(
-            title = stringResource(R.string.pt_hide_navigation_bar),
-            checked = state.boolean(PreferKey.hideNavigationBar),
-            onCheckedChange = { actions.onBooleanChanged(PreferKey.hideNavigationBar, it) },
-        )
-        ReadMoreDivider(contentColor)
-        SwitchSettingRow(
             title = stringResource(R.string.read_body_to_lh),
             checked = state.boolean(PreferKey.readBodyToLh),
             onCheckedChange = { actions.onBooleanChanged(PreferKey.readBodyToLh, it) },

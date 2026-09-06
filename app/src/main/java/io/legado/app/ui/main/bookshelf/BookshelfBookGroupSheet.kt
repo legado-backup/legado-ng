@@ -57,6 +57,7 @@ import io.legado.app.ui.design.components.compose.NgFormField
 import io.legado.app.ui.design.components.compose.NgFormFieldVariant
 import io.legado.app.ui.design.theme.NgAppTheme
 import io.legado.app.utils.postEvent
+import io.legado.app.utils.showWithAppNavigationBarVisibility
 import io.legado.app.utils.toastOnUi
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
@@ -154,7 +155,7 @@ class BookshelfBookGroupSheet private constructor(
                 state = BottomSheetBehavior.STATE_EXPANDED
             }
         }
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
     }
 
     @Composable

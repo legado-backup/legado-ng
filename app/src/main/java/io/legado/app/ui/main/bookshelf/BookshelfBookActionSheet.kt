@@ -63,6 +63,7 @@ import io.legado.app.ui.design.components.compose.NgThemedActionIconTone
 import io.legado.app.ui.design.components.compose.ngDrawerContentCardColor
 import io.legado.app.ui.design.theme.NgAppTheme
 import io.legado.app.ui.design.theme.NgTheme
+import io.legado.app.utils.showWithAppNavigationBarVisibility
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -131,7 +132,7 @@ class BookshelfBookActionSheet(
                 state = BottomSheetBehavior.STATE_EXPANDED
             }
         }
-        dialog.show()
+        dialog.showWithAppNavigationBarVisibility()
         loadCacheProgress()
     }
 
