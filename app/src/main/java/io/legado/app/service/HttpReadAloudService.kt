@@ -377,20 +377,27 @@ class HttpReadAloudService : BaseReadAloudService(),
         itemIndex: Int,
         item: SpeakItem,
         chapterIndex: Int = playlistChapterIndex
-    ): MediaItem = MediaItem.Builder()
-        .setUri(Uri.fromFile(file))
-        .setTag(profile)
-        .setMediaId(
-            ReadAloudMediaItemIdentity(
-                generation = generation,
-                chapterIndex = chapterIndex,
-                itemIndex = itemIndex,
-                paragraphIndex = item.paragraphIndex,
-                start = item.start,
-                end = item.end
-            ).toMediaId()
+    ): MediaItem {
+        TtsPlayerFactory.registerPlaybackProfile(
+            player = exoPlayer,
+            profile = profile,
+            voiceParams = voicePlaybackParams(profile),
         )
-        .build()
+        return MediaItem.Builder()
+            .setUri(Uri.fromFile(file))
+            .setTag(profile)
+            .setMediaId(
+                ReadAloudMediaItemIdentity(
+                    generation = generation,
+                    chapterIndex = chapterIndex,
+                    itemIndex = itemIndex,
+                    paragraphIndex = item.paragraphIndex,
+                    start = item.start,
+                    end = item.end
+                ).toMediaId()
+            )
+            .build()
+    }
 
     private fun currentSpeakItemIndex(mediaItem: MediaItem?): Int? {
         val identity = mediaItem?.mediaId
@@ -1603,6 +1610,13 @@ class HttpReadAloudService : BaseReadAloudService(),
     }
 
     private fun applyPlaybackRate() {
+        if (TtsPlayerFactory.usesProfileAwareRenderer(exoPlayer)) {
+            TtsPlayerFactory.applyPlaybackBaseRate(
+                player = exoPlayer,
+                baseRate = TtsSpeedPolicy.playbackRate(AppConfig.speechRatePlay),
+            )
+            return
+        }
         val profile = exoPlayer.currentMediaItem
             ?.localConfiguration
             ?.tag as? TtsPlaybackProfile
@@ -1617,14 +1631,21 @@ class HttpReadAloudService : BaseReadAloudService(),
     }
 
     private fun applyPlaybackProfile(profile: TtsPlaybackProfile?) {
-        val voiceParams = profile?.let { current ->
-            TtsEngineStore.engine(current.engineId)?.voicePlaybackParams(current.voiceId)
-        } ?: TtsVoicePlaybackParams()
+        if (TtsPlayerFactory.usesProfileAwareRenderer(exoPlayer)) {
+            applyPlaybackRate()
+            return
+        }
         TtsPlayerFactory.applyPlaybackAdjustments(
             player = exoPlayer,
             baseRate = TtsSpeedPolicy.playbackRate(AppConfig.speechRatePlay),
-            voiceParams = voiceParams,
+            voiceParams = profile?.let(::voicePlaybackParams) ?: TtsVoicePlaybackParams(),
         )
+    }
+
+    private fun voicePlaybackParams(profile: TtsPlaybackProfile): TtsVoicePlaybackParams {
+        return TtsEngineStore.engine(profile.engineId)
+            ?.voicePlaybackParams(profile.voiceId)
+            ?: TtsVoicePlaybackParams()
     }
 
     private suspend fun createSilentSound(fileName: String) {
@@ -1730,7 +1751,8 @@ class HttpReadAloudService : BaseReadAloudService(),
             }
             upTtsProgress(progressBase + start.toInt() + 1)
             if (durationMs <= 0L) return@launch
-            val playbackRate = exoPlayer.playbackParameters.speed.coerceAtLeast(0.1f)
+            val playbackRate = TtsPlayerFactory.currentPlaybackSpeed(exoPlayer)
+                .coerceAtLeast(0.1f)
             val sleep = maxOf(1L, (durationMs / speakTextLength / playbackRate).toLong())
             for (i in start..speakTextLength.toLong()) {
                 if (activeGeneration != progressGeneration) return@launch
@@ -1769,6 +1791,19 @@ class HttpReadAloudService : BaseReadAloudService(),
     }
 
     override fun refreshTtsPlaybackParams() {
+        if (TtsPlayerFactory.usesProfileAwareRenderer(exoPlayer)) {
+            for (index in 0 until exoPlayer.mediaItemCount) {
+                val profile = exoPlayer.getMediaItemAt(index)
+                    .localConfiguration
+                    ?.tag as? TtsPlaybackProfile
+                    ?: continue
+                TtsPlayerFactory.registerPlaybackProfile(
+                    player = exoPlayer,
+                    profile = profile,
+                    voiceParams = voicePlaybackParams(profile),
+                )
+            }
+        }
         applyPlaybackRate()
         if (!pause) upPlayPos()
     }
@@ -1919,7 +1954,9 @@ class HttpReadAloudService : BaseReadAloudService(),
         val identity = mediaItem?.mediaId
             ?.let(::parseReadAloudMediaItemIdentity)
             ?: return
-        applyPlaybackProfile(mediaItem.localConfiguration?.tag as? TtsPlaybackProfile)
+        if (!TtsPlayerFactory.usesProfileAwareRenderer(exoPlayer)) {
+            applyPlaybackProfile(mediaItem.localConfiguration?.tag as? TtsPlaybackProfile)
+        }
         if (identity.chapterIndex != playlistChapterIndex &&
             !handoffSeamlessChapter(identity)
         ) return

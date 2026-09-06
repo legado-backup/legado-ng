@@ -175,11 +175,15 @@ internal class TtsMedia3AudioProcessorChain : TtsAdjustableAudioProcessorChain {
     private val processors = arrayOf<AudioProcessor>(sonicProcessor, gainProcessor)
     private var playbackParameters = PlaybackParameters.DEFAULT
     private var volumeGain = 1f
+    @Volatile
+    private var pendingVolumeGain = 1f
 
     override fun getAudioProcessors(): Array<AudioProcessor> = processors
 
     override fun applyPlaybackParameters(playbackParameters: PlaybackParameters): PlaybackParameters {
         this.playbackParameters = playbackParameters
+        volumeGain = pendingVolumeGain
+        gainProcessor.setVolumeGain(volumeGain)
         sonicProcessor.setSpeed(playbackParameters.speed)
         sonicProcessor.setPitch(playbackParameters.pitch)
         return playbackParameters
@@ -188,11 +192,20 @@ internal class TtsMedia3AudioProcessorChain : TtsAdjustableAudioProcessorChain {
     override fun applyPlaybackAdjustments(params: TtsEffectivePlaybackParams): Boolean {
         val wasSonicActive = isSonicLogicallyActive()
         val wasGainActive = isGainLogicallyActive()
-        volumeGain = params.volumeGain.coerceIn(0.1f, 2f)
-        gainProcessor.setVolumeGain(volumeGain)
+        setVoiceVolumeGain(params.volumeGain)
         applyPlaybackParameters(params.playbackParameters)
         return wasSonicActive != isSonicLogicallyActive() ||
             wasGainActive != isGainLogicallyActive()
+    }
+
+    fun setVoiceVolumeGain(gain: Float) {
+        pendingVolumeGain = gain.coerceIn(0.1f, 2f)
+        volumeGain = pendingVolumeGain
+        gainProcessor.setVolumeGain(volumeGain)
+    }
+
+    fun queueVoiceVolumeGain(gain: Float) {
+        pendingVolumeGain = gain.coerceIn(0.1f, 2f)
     }
 
     override fun applySkipSilenceEnabled(skipSilenceEnabled: Boolean): Boolean = false
@@ -228,11 +241,23 @@ internal class TtsPcmGainAudioProcessor : BaseAudioProcessor() {
         return inputAudioFormat
     }
 
-    override fun isActive(): Boolean = abs(volumeGain - 1f) >= CLOSE_THRESHOLD
+    // The multi-role player changes gain at stream boundaries. This processor is intentionally
+    // always present so crossing 1.0 never changes the AudioSink topology. It is PCM pass-through
+    // while gain is neutral.
+    override fun isActive(): Boolean = true
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         val sampleCount = inputBuffer.remaining() / BYTES_PER_SAMPLE
         if (sampleCount == 0) return
+
+        if (abs(volumeGain - 1f) < CLOSE_THRESHOLD) {
+            val outputSize = inputBuffer.remaining()
+            replaceOutputBuffer(outputSize).apply {
+                put(inputBuffer)
+                flip()
+            }
+            return
+        }
 
         val inputSamples = ShortArray(sampleCount)
         inputBuffer.asShortBuffer().get(inputSamples)
