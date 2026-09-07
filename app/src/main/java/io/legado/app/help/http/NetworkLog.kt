@@ -29,10 +29,12 @@ object NetworkLog {
         "x-auth-token",
         "x-access-token",
         "x-csrf-token",
-        "csrf-token"
+        "csrf-token",
+        "x-xsrf-token",
+        "xsrf-token"
     )
     private val credentialQueryPattern = Regex(
-        "([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|auth|authorization|token|secret|password|passwd|pwd|session(?:id)?)=)[^&#\\s]*",
+        "([?&](?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|auth|authorization|[_-]?(?:csrf|xsrf)[_-]?token|token|secret|password|passwd|pwd|session(?:id)?)=)[^&#\\s]*",
         setOf(RegexOption.IGNORE_CASE)
     )
     private val opaqueKeyQueryPattern = Regex(
@@ -40,11 +42,11 @@ object NetworkLog {
         setOf(RegexOption.IGNORE_CASE)
     )
     private val quotedCredentialPattern = Regex(
-        "(\"(?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|auth|authorization|token|secret|password|passwd|pwd|session(?:id)?|cookie|set[_-]?cookie)\"\\s*:\\s*\")[^\"]*(\")",
+        "(\"(?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|auth|authorization|[_-]?(?:csrf|xsrf)[_-]?token|token|secret|password|passwd|pwd|session(?:id)?|cookie|set[_-]?cookie)\"\\s*:\\s*\")[^\"]*(\")",
         setOf(RegexOption.IGNORE_CASE)
     )
     private val formCredentialPattern = Regex(
-        "((?:^|[&\\s])(?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|auth|authorization|token|secret|password|passwd|pwd|session(?:id)?|cookie|set[_-]?cookie)=)[^&\\s]*",
+        "((?:^|[&\\s])(?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|auth|authorization|[_-]?(?:csrf|xsrf)[_-]?token|token|secret|password|passwd|pwd|session(?:id)?|cookie|set[_-]?cookie)=)[^&\\s]*",
         setOf(RegexOption.IGNORE_CASE)
     )
     private val bearerCredentialPattern = Regex(

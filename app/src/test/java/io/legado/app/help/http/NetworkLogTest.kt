@@ -17,6 +17,8 @@ class NetworkLogTest {
             "Set-Cookie", "sid=response-secret; Path=/",
             "X-Api-Key", "api-key-secret",
             "X-Goog-Api-Key", "gemini-key-secret",
+            "X-CSRF-Token", "csrf-header-secret",
+            "X-XSRF-Token", "xsrf-header-secret",
             "User-Agent", "Legado"
         )
 
@@ -27,12 +29,16 @@ class NetworkLogTest {
         assertTrue(formatted.contains("Set-Cookie: [已脱敏]"))
         assertTrue(formatted.contains("X-Api-Key: [已脱敏]"))
         assertTrue(formatted.contains("X-Goog-Api-Key: [已脱敏]"))
+        assertTrue(formatted.contains("X-CSRF-Token: [已脱敏]"))
+        assertTrue(formatted.contains("X-XSRF-Token: [已脱敏]"))
         assertTrue(formatted.contains("User-Agent: Legado"))
         assertFalse(formatted.contains("sk-test-secret"))
         assertFalse(formatted.contains("session=abc"))
         assertFalse(formatted.contains("response-secret"))
         assertFalse(formatted.contains("api-key-secret"))
         assertFalse(formatted.contains("gemini-key-secret"))
+        assertFalse(formatted.contains("csrf-header-secret"))
+        assertFalse(formatted.contains("xsrf-header-secret"))
     }
 
     @Test
@@ -52,8 +58,8 @@ class NetworkLogTest {
     @Test
     fun redactCredentialsForLogRedactsBodyCredentials() {
         val body = """
-            {"api_key":"sk-json-secret","password":"pwd-secret","content":"正文 Bearer token 不应出现"}
-            access_token=form-secret&name=reader
+            {"api_key":"sk-json-secret","password":"pwd-secret","_csrfToken":"csrf-json-secret","content":"正文 Bearer token 不应出现"}
+            access_token=form-secret&xsrf-token=xsrf-form-secret&name=reader
             Authorization: Bearer header-secret
         """.trimIndent()
 
@@ -62,21 +68,29 @@ class NetworkLogTest {
         assertFalse(redacted.contains("sk-json-secret"))
         assertFalse(redacted.contains("pwd-secret"))
         assertFalse(redacted.contains("form-secret"))
+        assertFalse(redacted.contains("csrf-json-secret"))
+        assertFalse(redacted.contains("xsrf-form-secret"))
         assertFalse(redacted.contains("header-secret"))
         assertTrue(redacted.contains("\"api_key\":\"[已脱敏]\""))
         assertTrue(redacted.contains("\"password\":\"[已脱敏]\""))
+        assertTrue(redacted.contains("\"_csrfToken\":\"[已脱敏]\""))
         assertTrue(redacted.contains("access_token=[已脱敏]"))
+        assertTrue(redacted.contains("xsrf-token=[已脱敏]"))
         assertTrue(redacted.contains("Bearer [已脱敏]"))
     }
 
     @Test
     fun redactUrlForLogRedactsCredentialQueryParams() {
-        val url = "https://example.com/api?access_token=url-secret&name=reader&api_key=key-secret#frag"
+        val url = "https://example.com/api?access_token=url-secret&name=reader" +
+            "&api_key=key-secret&_csrfToken=csrf-secret&csrf_token=csrf-snake-secret" +
+            "&csrf-token=csrf-kebab-secret&xsrfToken=xsrf-secret#frag"
 
         val redacted = NetworkLog.redactUrlForLog(url)
 
         assertEquals(
-            "https://example.com/api?access_token=[已脱敏]&name=reader&api_key=[已脱敏]#frag",
+            "https://example.com/api?access_token=[已脱敏]&name=reader" +
+                "&api_key=[已脱敏]&_csrfToken=[已脱敏]&csrf_token=[已脱敏]" +
+                "&csrf-token=[已脱敏]&xsrfToken=[已脱敏]#frag",
             redacted
         )
     }
