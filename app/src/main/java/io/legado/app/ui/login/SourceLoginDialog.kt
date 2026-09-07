@@ -127,7 +127,7 @@ class SourceLoginDialog : DialogFragment(), SourceLoginJsExtensions.Callback {
                     isLoading = loading,
                     enabledActions = enabledActions,
                     countdowns = countdowns,
-                    onConfirm = ::login,
+                    onConfirm = ::confirm,
                     onShowLoginHeader = {
                         headerDialogText = source.getLoginHeader().orEmpty()
                     },
@@ -401,6 +401,10 @@ class SourceLoginDialog : DialogFragment(), SourceLoginJsExtensions.Callback {
         }
     }
 
+    private fun confirm() {
+        if (isV2) dismissAllowingStateLoss() else login()
+    }
+
     private fun renderV2(
         candidateState: String = stateJson,
         commandErrors: Map<String, String> = emptyMap(),
@@ -462,6 +466,7 @@ class SourceLoginDialog : DialogFragment(), SourceLoginJsExtensions.Callback {
             displayNames = newRows.map(RowUi::name)
             errors.clear()
             errors.putAll(commandErrors)
+            restoreAction?.let { enabledActions[it] = true }
         }
     }
 

@@ -95,7 +95,7 @@ internal fun SourceLoginScreen(
         ) {
             SourceLoginTopBar(
                 title = title,
-                showConfirm = !isV2,
+                showConfirm = true,
                 onConfirm = onConfirm,
                 onShowLoginHeader = onShowLoginHeader,
                 onDeleteLoginHeader = onDeleteLoginHeader,
