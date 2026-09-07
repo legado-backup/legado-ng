@@ -35,11 +35,17 @@ import io.legado.app.ui.code.config.ChangeThemeDialog
 import io.legado.app.ui.code.config.SettingsDialog
 import io.legado.app.ui.widget.keyboard.KeyboardToolPop
 import io.legado.app.utils.imeHeight
+import io.legado.app.utils.printOnDebug
 import io.legado.app.utils.putPrefBoolean
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.showHelp
+import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class CodeEditActivity :
     VMBaseActivity<ActivityCodeEditBinding, CodeEditViewModel>(),
@@ -49,7 +55,9 @@ class CodeEditActivity :
         const val EXTRA_SHOW_DEBUG_SOURCE = "showDebugSource"
         const val EXTRA_SHOW_LOGIN_SOURCE = "showLoginSource"
         const val EXTRA_CONFIRM_SAVE_ON_EXIT = "confirmSaveOnExit"
+        const val EXTRA_TEXT_SESSION_ID = "textSessionId"
         const val EXTRA_RESULT_ACTION = "resultAction"
+        const val EXTRA_RESULT_TEXT_CHANGED = "resultTextChanged"
         const val RESULT_ACTION_DEBUG_SOURCE = "debugSource"
         const val RESULT_ACTION_LOGIN_SOURCE = "loginSource"
 
@@ -57,6 +65,7 @@ class CodeEditActivity :
         private var findText = ""
         private var replaceText = ""
         private var isRegex = true
+        private const val STATE_SESSION_CURSOR_POSITION = "sessionCursorPosition"
     }
     override val binding by viewBinding(ActivityCodeEditBinding::inflate)
     override val viewModel by viewModels<CodeEditViewModel>()
@@ -67,6 +76,7 @@ class CodeEditActivity :
     private val editorSearcher: EditorSearcher by lazy { editor.searcher }
     private var searchOptions: SearchOptions? = null
     private var menuSaveBtn: MenuItem? = null
+    private var isReturningResult = false
 
     private val isDark
         get() = AppConfig.editTemeAuto && ThemeConfig.isDarkTheme(this)
@@ -85,10 +95,16 @@ class CodeEditActivity :
                 upEdit(AppConfig.editFontScale, null, AppConfig.editAutoWrap)
                 setText(viewModel.initialText)
                 editable = viewModel.writable
+                if (viewModel.textSessionId != null) {
+                    isSaveEnabled = false
+                }
                 menuSaveBtn?.isVisible = viewModel.writable
                 requestFocus()
                 postDelayed({
-                    val pos = cursor.indexer.getCharPosition(viewModel.cursorPosition)
+                    val cursorPosition = savedInstanceState
+                        ?.getInt(STATE_SESSION_CURSOR_POSITION)
+                        ?: viewModel.cursorPosition
+                    val pos = cursor.indexer.getCharPosition(cursorPosition)
                     setSelection(pos.line, pos.column, true)
                 }, 360) // 进行延时,确保加载渲染完成,从而确保光标能显示跳转到长文本最后
             }
@@ -109,6 +125,16 @@ class CodeEditActivity :
         editor.release()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        viewModel.textSessionId?.let { sessionId ->
+            runCatching {
+                CodeEditSessionStore.app.write(sessionId, editor.text.toString())
+            }.onFailure { it.printOnDebug() }
+            outState.putInt(STATE_SESSION_CURSOR_POSITION, editor.cursor?.left ?: 0)
+        }
+        super.onSaveInstanceState(outState)
+    }
+
     /**
      * 使用super.finish(),防止循环回调
      * */
@@ -123,15 +149,16 @@ class CodeEditActivity :
         when {
             text == viewModel.initialText -> {
                 if (cursorPos > 0 || intent.getBooleanExtra("returnUnchangedText", false)) {
-                    val result = Intent().apply {
-                        if (intent.getBooleanExtra("returnUnchangedText", false)) {
-                            putExtra("text", text)
-                        }
-                        putExtra("cursorPosition", cursorPos)
-                    }
-                    setResult(RESULT_OK, result)
+                    returnResultAndFinish(
+                        text = text.takeIf {
+                            intent.getBooleanExtra("returnUnchangedText", false)
+                        },
+                        cursorPosition = cursorPos,
+                        textChanged = false,
+                    )
+                } else {
+                    finishWithoutPrompt()
                 }
-                super.finish()
             }
             check -> {
                 alert(R.string.exit) {
@@ -144,17 +171,12 @@ class CodeEditActivity :
                             }
                             setResult(RESULT_OK, result)
                         }
-                        super.finish()
+                        finishWithoutPrompt()
                     }
                 }
             }
             else -> {
-                val result = Intent().apply {
-                    putExtra("text", text)
-                    putExtra("cursorPosition", cursorPos)
-                }
-                setResult(RESULT_OK, result)
-                super.finish()
+                returnResultAndFinish(text, cursorPos)
             }
         }
     }
@@ -355,12 +377,61 @@ class CodeEditActivity :
     }
 
     private fun returnText(action: String) {
-        val result = Intent().apply {
-            putExtra("text", editor.text.toString())
-            putExtra("cursorPosition", editor.cursor?.left ?: 0)
-            putExtra(EXTRA_RESULT_ACTION, action)
+        returnResultAndFinish(
+            text = editor.text.toString(),
+            cursorPosition = editor.cursor?.left ?: 0,
+            action = action,
+        )
+    }
+
+    private fun returnResultAndFinish(
+        text: String?,
+        cursorPosition: Int,
+        action: String? = null,
+        textChanged: Boolean = true,
+    ) {
+        if (isReturningResult) return
+        val sessionId = viewModel.textSessionId
+        if (sessionId == null || text == null) {
+            setResult(
+                RESULT_OK,
+                Intent().apply {
+                    text?.let { putExtra("text", it) }
+                    putExtra("cursorPosition", cursorPosition)
+                    putExtra(EXTRA_RESULT_TEXT_CHANGED, textChanged)
+                    action?.let { putExtra(EXTRA_RESULT_ACTION, it) }
+                }
+            )
+            finishWithoutPrompt()
+            return
         }
-        setResult(RESULT_OK, result)
+
+        isReturningResult = true
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    CodeEditSessionStore.app.write(sessionId, text)
+                }
+                setResult(
+                    RESULT_OK,
+                    Intent().apply {
+                        putExtra(EXTRA_TEXT_SESSION_ID, sessionId)
+                        putExtra("cursorPosition", cursorPosition)
+                        putExtra(EXTRA_RESULT_TEXT_CHANGED, textChanged)
+                        action?.let { putExtra(EXTRA_RESULT_ACTION, it) }
+                    }
+                )
+                finishWithoutPrompt()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                isReturningResult = false
+                toastOnUi(error.localizedMessage)
+            }
+        }
+    }
+
+    private fun finishWithoutPrompt() {
         super.finish()
     }
 
@@ -373,7 +444,7 @@ class CodeEditActivity :
     }
 
     override fun onCodeEditDiscardAndExit() {
-        super.finish()
+        finishWithoutPrompt()
     }
 
     override fun helpActions(): List<SelectItem<String>> {

@@ -19,6 +19,7 @@ import io.legado.app.data.entities.BookSource
 import io.legado.app.model.jsSource.JsSourceUpsert
 import io.legado.app.ui.book.source.debug.BookSourceDebugActivity
 import io.legado.app.ui.code.CodeEditActivity
+import io.legado.app.ui.code.CodeEditSessionStore
 import io.legado.app.ui.design.theme.NgAppTheme
 import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.utils.StartActivityContract
@@ -34,7 +35,7 @@ class JsSourceEditActivity : BaseActivity<ComposeActivityBinding>(imageBg = fals
 
     companion object {
         private const val STATE_OPENED_SOURCE_URL = "openedSourceUrl"
-        private const val STATE_PENDING_TEXT = "pendingText"
+        private const val STATE_EDIT_SESSION_ID = "editSessionId"
         private const val STATE_STAGE = "stage"
     }
 
@@ -42,7 +43,9 @@ class JsSourceEditActivity : BaseActivity<ComposeActivityBinding>(imageBg = fals
 
     private var openedSourceUrl: String? = null
     private var pendingText: String? = null
+    private var editSessionId: String? = null
     private var stage = JsSourceEditStage.READY
+    private var editorOpening = false
 
     private val debugResult = registerForActivityResult(
         StartActivityContract(BookSourceDebugActivity::class.java)
@@ -54,21 +57,47 @@ class JsSourceEditActivity : BaseActivity<ComposeActivityBinding>(imageBg = fals
     private val editorResult = registerForActivityResult(
         StartActivityContract(CodeEditActivity::class.java)
     ) { result ->
-        val text = result.data?.getStringExtra("text")
-        if (result.resultCode != Activity.RESULT_OK || text == null) {
+        val data = result.data
+        val returnedSessionId = data?.getStringExtra(CodeEditActivity.EXTRA_TEXT_SESSION_ID)
+        val legacyText = data?.getStringExtra("text")
+        if (result.resultCode != Activity.RESULT_OK ||
+            returnedSessionId == null && legacyText == null
+        ) {
             stage = JsSourceEditStage.READY
             super.finish()
             return@registerForActivityResult
         }
-        pendingText = text
-        val action = result.data?.getStringExtra(CodeEditActivity.EXTRA_RESULT_ACTION)
+        returnedSessionId?.let { editSessionId = it }
+        val action = data?.getStringExtra(CodeEditActivity.EXTRA_RESULT_ACTION)
+        val textChanged = data?.getBooleanExtra(
+            CodeEditActivity.EXTRA_RESULT_TEXT_CHANGED,
+            true,
+        ) ?: true
         val debugRequested = action == CodeEditActivity.RESULT_ACTION_DEBUG_SOURCE
         val loginRequested = action == CodeEditActivity.RESULT_ACTION_LOGIN_SOURCE
         stage = stageForEditorResult(debugRequested, loginRequested)
-        when {
-            debugRequested -> saveForDebug(text)
-            loginRequested -> saveForLogin(text)
-            else -> saveSource(text)
+        lifecycleScope.launch {
+            val text = try {
+                legacyText ?: withContext(Dispatchers.IO) {
+                    returnedSessionId?.let(CodeEditSessionStore.app::read)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                toastOnUi(error.localizedMessage)
+                null
+            }
+            if (text == null) {
+                stage = JsSourceEditStage.READY
+                super.finish()
+                return@launch
+            }
+            pendingText = text
+            when {
+                debugRequested -> saveForDebug(text)
+                loginRequested -> saveForLogin(text)
+                else -> saveSource(text, showSuccessToast = textChanged)
+            }
         }
     }
 
@@ -89,13 +118,14 @@ class JsSourceEditActivity : BaseActivity<ComposeActivityBinding>(imageBg = fals
         }
         openedSourceUrl = savedInstanceState?.getString(STATE_OPENED_SOURCE_URL)
             ?: intent.getStringExtra("sourceUrl")
-        pendingText = savedInstanceState?.getString(STATE_PENDING_TEXT)
+        editSessionId = savedInstanceState?.getString(STATE_EDIT_SESSION_ID)
         stage = savedInstanceState?.getString(STATE_STAGE)
             ?.let { runCatching { JsSourceEditStage.valueOf(it) }.getOrNull() }
             ?: JsSourceEditStage.READY
         lifecycleScope.launch {
-            val text = pendingText ?: withContext(Dispatchers.IO) {
-                openedSourceUrl?.let { appDb.bookSourceDao.getBookSource(it)?.mainJs }
+            val text = withContext(Dispatchers.IO) {
+                editSessionId?.let(CodeEditSessionStore.app::read)
+                    ?: openedSourceUrl?.let { appDb.bookSourceDao.getBookSource(it)?.mainJs }
                     ?: assets.open("js_source_template.js").bufferedReader().use { it.readText() }
             }
             pendingText = text
@@ -114,21 +144,48 @@ class JsSourceEditActivity : BaseActivity<ComposeActivityBinding>(imageBg = fals
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(STATE_OPENED_SOURCE_URL, openedSourceUrl)
-        outState.putString(STATE_PENDING_TEXT, pendingText)
+        outState.putString(STATE_EDIT_SESSION_ID, editSessionId)
         outState.putString(STATE_STAGE, stage.name)
     }
 
+    override fun onDestroy() {
+        if (isFinishing) {
+            editSessionId?.let(CodeEditSessionStore.app::delete)
+        }
+        super.onDestroy()
+    }
+
     private fun openEditor(text: String) {
-        if (stage == JsSourceEditStage.EDITOR_OPEN || isFinishing) return
-        stage = JsSourceEditStage.EDITOR_OPEN
-        editorResult.launch {
-            putExtra("text", text)
-            putExtra("title", getString(R.string.js_source_edit))
-            putExtra("languageName", "source.js")
-            putExtra("returnUnchangedText", true)
-            putExtra(CodeEditActivity.EXTRA_CONFIRM_SAVE_ON_EXIT, openedSourceUrl == null)
-            putExtra(CodeEditActivity.EXTRA_SHOW_DEBUG_SOURCE, true)
-            putExtra(CodeEditActivity.EXTRA_SHOW_LOGIN_SOURCE, true)
+        if (stage == JsSourceEditStage.EDITOR_OPEN || editorOpening || isFinishing) return
+        editorOpening = true
+        lifecycleScope.launch {
+            try {
+                val sessionId = withContext(Dispatchers.IO) {
+                    editSessionId?.also {
+                        CodeEditSessionStore.app.write(it, text)
+                    } ?: CodeEditSessionStore.app.create(text)
+                }
+                editSessionId = sessionId
+                if (isFinishing) return@launch
+                stage = JsSourceEditStage.EDITOR_OPEN
+                editorResult.launch {
+                    putExtra(CodeEditActivity.EXTRA_TEXT_SESSION_ID, sessionId)
+                    putExtra("title", getString(R.string.js_source_edit))
+                    putExtra("languageName", "source.js")
+                    putExtra("returnUnchangedText", true)
+                    putExtra(CodeEditActivity.EXTRA_CONFIRM_SAVE_ON_EXIT, openedSourceUrl == null)
+                    putExtra(CodeEditActivity.EXTRA_SHOW_DEBUG_SOURCE, true)
+                    putExtra(CodeEditActivity.EXTRA_SHOW_LOGIN_SOURCE, true)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                stage = JsSourceEditStage.READY
+                toastOnUi(error.localizedMessage)
+                super.finish()
+            } finally {
+                editorOpening = false
+            }
         }
     }
 
@@ -197,6 +254,11 @@ class JsSourceEditActivity : BaseActivity<ComposeActivityBinding>(imageBg = fals
                 openedSourceUrl = source.bookSourceUrl
                 stage = stage.afterSuccessfulSave()
                 pendingText = source.mainJs ?: text
+                editSessionId?.let { sessionId ->
+                    withContext(Dispatchers.IO) {
+                        CodeEditSessionStore.app.write(sessionId, pendingText.orEmpty())
+                    }
+                }
                 if (showSuccessToast) toastOnUi(R.string.success)
                 setResult(Activity.RESULT_OK, Intent().putExtra("origin", source.bookSourceUrl))
                 onSuccess?.invoke(source)

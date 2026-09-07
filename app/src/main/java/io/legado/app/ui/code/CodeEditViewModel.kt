@@ -40,6 +40,7 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
     private val themeRegistry: ThemeRegistry = ThemeRegistry.getInstance()
     var writable = true
     var title: String? = null
+    var textSessionId: String? = null
 
     fun initSora() {
         //初始化sora加载
@@ -54,7 +55,12 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
     ) {
         execute {
             val cacheKey = intent.getStringExtra("cacheKey")
-            if (cacheKey != null) {
+            val sessionId = intent.getStringExtra(CodeEditActivity.EXTRA_TEXT_SESSION_ID)
+            if (sessionId != null) {
+                initialText = CodeEditSessionStore.app.read(sessionId)
+                    ?: throw Exception("未获取到代码编辑会话")
+                textSessionId = sessionId
+            } else if (cacheKey != null) {
                 val cacheText = CacheManager.getFromMemory(cacheKey) as? String ?: throw Exception("未获取到查看文本")
                 writable = false
                 initialText = cacheText
