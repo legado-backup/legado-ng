@@ -81,6 +81,7 @@ import io.legado.app.ui.design.components.compose.NgFlatActionRail
 import io.legado.app.ui.design.components.compose.NgFlatActionRailItem
 import io.legado.app.ui.design.components.compose.NgFlatActionRailVariant
 import io.legado.app.ui.design.components.compose.NgFormActionButton
+import io.legado.app.ui.design.components.compose.NgFormActionButtonAppearance
 import io.legado.app.ui.design.components.compose.NgFormActionRow
 import io.legado.app.ui.design.components.compose.NgFormField
 import io.legado.app.ui.design.components.compose.NgFormGroup
@@ -804,6 +805,7 @@ private fun BookSourceImportActions(
             onClick = onDismiss,
             enabled = !importing,
             modifier = Modifier.weight(1f),
+            appearance = NgFormActionButtonAppearance.SURFACE_CARD,
         )
         NgFormActionButton(
             text = if (importing) {
