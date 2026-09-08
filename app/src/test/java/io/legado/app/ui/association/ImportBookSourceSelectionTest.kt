@@ -3,6 +3,9 @@ package io.legado.app.ui.association
 import android.app.Application
 import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.BookSourcePart
+import androidx.lifecycle.ViewModelStore
+import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,20 +18,28 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [28])
 class ImportBookSourceSelectionTest {
+    private val models = arrayListOf<ImportBookSourceViewModel>()
+
+    @After
+    fun releaseModels() {
+        models.forEach { model -> ViewModelStore().apply { put("import", model); clear() } }
+    }
+
     private fun model(): ImportBookSourceViewModel {
         val model = ImportBookSourceViewModel(RuntimeEnvironment.getApplication())
+        models.add(model)
         val sources = listOf(
             BookSource(bookSourceUrl = "empty"),
             BookSource(bookSourceUrl = "search", searchUrl = "/search"),
             BookSource(bookSourceUrl = "discovery", exploreUrl = "分类::/list"),
         )
         sources.forEachIndexed { index, source ->
-            model.allSources.add(source)
+            model.appendPreviewSource(source)
             model.checkSources.add(null)
             model.selectStatus.add(false)
             model.newSourceStatus.add(index != 2)
             model.updateSourceStatus.add(index == 2)
-            model.updatePreviewSource(index, source)
+            runBlocking { model.updatePreviewSource(index, source) }
         }
         return model
     }
@@ -57,7 +68,7 @@ class ImportBookSourceSelectionTest {
     }
 
     @Test
-    fun editingToEmptyImmediatelyDeselectsAndRepairDoesNotAutoSelect() {
+    fun editingToEmptyImmediatelyDeselectsAndRepairDoesNotAutoSelect() = runBlocking {
         val model = model()
         model.applySelection(setOf(1))
         model.updatePreviewSource(1, BookSource(bookSourceUrl = "search"))
@@ -71,17 +82,20 @@ class ImportBookSourceSelectionTest {
     }
 
     @Test
-    fun submitRechecksPayloadEvenIfCachedSelectionWasBypassed() {
+    fun submitRechecksPayloadEvenIfCachedSelectionWasBypassed() = runBlocking {
         val model = model()
         model.applySelection(setOf(1, 2))
         model.selectStatus[0] = true
-        model.allSources[1] = BookSource(bookSourceUrl = "search", lastUpdateTime = 100L)
+        model.updatePreviewSource(1, BookSource(bookSourceUrl = "search", lastUpdateTime = 100L))
         model.checkSources[1] = BookSourcePart(bookSourceUrl = "search", hasSearchUrl = true)
-        assertEquals(listOf(2), model.selectedImportIndices())
+        model.allSources[0] = model.allSources[0].copy(emptyConfiguration = false)
+        model.allSources[1] = model.allSources[1].copy(emptyConfiguration = false)
+        model.selectStatus[1] = true
+        assertEquals(listOf(2), model.selectedImportRecords(model.selectedImportIndices()).map { it.first }.toList())
     }
 
     @Test
-    fun allEmptyPreviewHasNothingSelectableOrImportable() {
+    fun allEmptyPreviewHasNothingSelectableOrImportable() = runBlocking {
         val model = model()
         model.allSources.indices.forEach { model.updatePreviewSource(it, BookSource(bookSourceUrl = "$it")) }
         assertEquals(emptySet<Int>(), model.applySelection(setOf(0, 1, 2)))

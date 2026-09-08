@@ -100,6 +100,8 @@ import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.putPrefBoolean
 import io.legado.app.utils.showDialogFragment
+import io.legado.app.utils.toastOnUi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -118,7 +120,7 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
     }
 
     private val viewModel by viewModels<ImportBookSourceViewModel>()
-    private var sources by mutableStateOf<List<BookSource>>(
+    private var sources by mutableStateOf<List<BookSourceImportItem>>(
         emptyList(),
         referentialEqualityPolicy(),
     )
@@ -126,6 +128,8 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
     private var selectableIndices by mutableStateOf<Set<Int>>(emptySet())
     private var loading by mutableStateOf(true)
     private var importing by mutableStateOf(false)
+    private var savingSource by mutableStateOf(false)
+    private var loadingSourceCode = false
     private var error by mutableStateOf<String?>(null)
     private var keepName by mutableStateOf(AppConfig.importKeepName)
     private var keepGroup by mutableStateOf(AppConfig.importKeepGroup)
@@ -162,6 +166,7 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
                     updateSourceCount = selectableIndices.count { viewModel.updateSourceStatus[it] },
                     loading = loading,
                     importing = importing,
+                    allowImport = !savingSource,
                     error = error,
                     keepName = keepName,
                     keepGroup = keepGroup,
@@ -319,19 +324,26 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
     }
 
     private fun viewSource(index: Int) {
-        val source = sources.getOrNull(index) ?: return
-        showDialogFragment(
-            CodeDialog(
-                GSON.toJson(source),
-                disableEdit = false,
-                requestId = index.toString(),
-            )
-        )
+        if (index !in sources.indices || loadingSourceCode || importing || savingSource) return
+        loadingSourceCode = true
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val code = withContext(IO) { viewModel.previewSourceCode(index) }
+                showDialogFragment(CodeDialog(code, disableEdit = false, requestId = index.toString()))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                AppLog.put("读取书源预览失败", error)
+                context?.toastOnUi(error.localizedMessage ?: "读取书源预览失败")
+            } finally {
+                loadingSourceCode = false
+            }
+        }
     }
 
     private fun importSelected() {
         applySelection(selectedIndices)
-        if (importing || selectedIndices.isEmpty()) return
+        if (importing || savingSource || selectedIndices.isEmpty()) return
         updateImporting(true)
         viewModel.importSelect {
             updateImporting(false)
@@ -350,12 +362,23 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
 
     override fun onCodeSave(code: String, requestId: String?) {
         val index = requestId?.toIntOrNull() ?: return
-        if (index !in sources.indices) return
-        GSON.fromJsonObject<BookSource>(code).getOrNull()?.let { source ->
-            viewModel.updatePreviewSource(index, source)
-            sources = sources.toMutableList().apply { set(index, source) }
-            selectableIndices = viewModel.selectableIndices
-            applySelection(selectedIndices)
+        if (index !in sources.indices || importing || savingSource) return
+        savingSource = true
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val source = withContext(IO) { GSON.fromJsonObject<BookSource>(code).getOrThrow() }
+                viewModel.updatePreviewSource(index, source)
+                sources = viewModel.allSources.toList()
+                selectableIndices = viewModel.selectableIndices
+                applySelection(selectedIndices)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                AppLog.put("保存书源预览失败", error)
+                context?.toastOnUi(error.localizedMessage ?: "保存书源预览失败")
+            } finally {
+                savingSource = false
+            }
         }
     }
 
@@ -373,7 +396,7 @@ private enum class BookSourceImportDrawerScreen {
 
 @Composable
 private fun BookSourceImportDrawer(
-    sources: List<BookSource>,
+    sources: List<BookSourceImportItem>,
     localSources: List<BookSourcePart?>,
     selectedIndices: Set<Int>,
     selectableIndices: Set<Int>,
@@ -381,6 +404,7 @@ private fun BookSourceImportDrawer(
     updateSourceCount: Int,
     loading: Boolean,
     importing: Boolean,
+    allowImport: Boolean,
     error: String?,
     keepName: Boolean,
     keepGroup: Boolean,
@@ -432,6 +456,7 @@ private fun BookSourceImportDrawer(
                     updateSourceCount = updateSourceCount,
                     loading = loading,
                     importing = importing,
+                    allowImport = allowImport,
                     error = error,
                     showComment = showComment,
                     onSettings = { screen = BookSourceImportDrawerScreen.SETTINGS },
@@ -484,7 +509,7 @@ private fun BookSourceImportDrawer(
 
 @Composable
 private fun ColumnScope.BookSourceImportMainContent(
-    sources: List<BookSource>,
+    sources: List<BookSourceImportItem>,
     localSources: List<BookSourcePart?>,
     selectedIndices: Set<Int>,
     selectableIndices: Set<Int>,
@@ -492,6 +517,7 @@ private fun ColumnScope.BookSourceImportMainContent(
     updateSourceCount: Int,
     loading: Boolean,
     importing: Boolean,
+    allowImport: Boolean,
     error: String?,
     showComment: Boolean,
     onSettings: () -> Unit,
@@ -535,6 +561,7 @@ private fun ColumnScope.BookSourceImportMainContent(
         allSelected = selectableIndices.isNotEmpty() && selectedIndices == selectableIndices,
         selectedCount = selectedIndices.size,
         importing = importing,
+        allowImport = allowImport,
         hasSources = selectableIndices.isNotEmpty(),
         onToggleAll = onToggleAll,
         onDismiss = onDismiss,
@@ -619,7 +646,7 @@ private fun BookSourceImportSummaryDivider() {
 
 @Composable
 private fun BookSourceImportList(
-    sources: List<BookSource>,
+    sources: List<BookSourceImportItem>,
     localSources: List<BookSourcePart?>,
     selectedIndices: Set<Int>,
     selectableIndices: Set<Int>,
@@ -707,7 +734,7 @@ private fun BookSourceImportMessage(
 
 @Composable
 private fun BookSourceImportRow(
-    source: BookSource,
+    source: BookSourceImportItem,
     localSource: BookSourcePart?,
     selected: Boolean,
     selectable: Boolean,
@@ -809,6 +836,7 @@ private fun BookSourceImportActions(
     allSelected: Boolean,
     selectedCount: Int,
     importing: Boolean,
+    allowImport: Boolean,
     hasSources: Boolean,
     onToggleAll: () -> Unit,
     onDismiss: () -> Unit,
@@ -839,7 +867,7 @@ private fun BookSourceImportActions(
             },
             onClick = onImport,
             modifier = Modifier.weight(1f),
-            enabled = selectedCount > 0 && !importing,
+            enabled = selectedCount > 0 && !importing && allowImport,
             variant = NgButtonVariant.PRIMARY,
         )
     }

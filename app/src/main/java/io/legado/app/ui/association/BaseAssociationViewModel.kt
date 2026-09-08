@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.lifecycle.MutableLiveData
 import io.legado.app.base.BaseViewModel
 import io.legado.app.utils.inputStream
-import io.legado.app.utils.jsonPath
 
 abstract class BaseAssociationViewModel(application: Application) : BaseViewModel(application) {
 
@@ -13,29 +12,27 @@ abstract class BaseAssociationViewModel(application: Application) : BaseViewMode
     val errorLive = MutableLiveData<String>()
 
     fun importJson(uri: Uri) {
-        val map = uri.inputStream(context).getOrThrow().use {
-            jsonPath.parse(it).read<Map<String, *>>("$[0]")
-        } ?: uri.inputStream(context).getOrThrow().use {
-            jsonPath.parse(it).read("$")
+        val keys = uri.inputStream(context).getOrThrow().bufferedReader().use {
+            firstImportObjectKeys(it)
         }
 
         when {
-            map.containsKey("bookSourceUrl") ->
+            "bookSourceUrl" in keys ->
                 successLive.postValue("bookSource" to uri.toString())
 
-            map.containsKey("sourceUrl") ->
+            "sourceUrl" in keys ->
                 successLive.postValue("rssSource" to uri.toString())
 
-            map.containsKey("pattern") ->
+            "pattern" in keys ->
                 successLive.postValue("replaceRule" to uri.toString())
 
-            map.containsKey("themeName") ->
+            "themeName" in keys ->
                 successLive.postValue("theme" to uri.toString())
 
-            map.containsKey("showRule") ->
+            "showRule" in keys ->
                 successLive.postValue("dictRule" to uri.toString())
 
-            map.containsKey("name") && map.containsKey("rule") ->
+            "name" in keys && "rule" in keys ->
                 successLive.postValue("txtRule" to uri.toString())
 
             else -> errorLive.postValue("格式不对")

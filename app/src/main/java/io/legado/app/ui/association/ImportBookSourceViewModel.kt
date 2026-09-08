@@ -3,8 +3,6 @@ package io.legado.app.ui.association
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.MutableLiveData
-import com.jayway.jsonpath.JsonPath
-import io.legado.app.R
 import io.legado.app.base.BaseViewModel
 import io.legado.app.constant.AppConst
 import io.legado.app.constant.AppLog
@@ -12,28 +10,26 @@ import io.legado.app.constant.AppPattern
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.BookSourcePart
-import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.book.ContentProcessor
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.http.decompressed
 import io.legado.app.help.http.newCallResponseBody
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.help.source.SourceHelp
 import io.legado.app.help.source.isEmptyConfiguration
 import io.legado.app.model.RuleUpdate
-import io.legado.app.model.jsSource.JsSourceConfig
-import io.legado.app.model.jsSource.JsSourceUpsert
 import io.legado.app.utils.GSON
-import io.legado.app.utils.fromJsonArray
-import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.inputStream
 import io.legado.app.utils.isAbsUrl
-import io.legado.app.utils.isJsonArray
-import io.legado.app.utils.isJsonObject
 import io.legado.app.utils.isUri
 import io.legado.app.utils.splitNotBlank
+import io.legado.app.utils.toastOnUi
+import java.io.StringReader
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 
 
 class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
@@ -42,7 +38,8 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
     val errorLiveData = MutableLiveData<String>()
     val successLiveData = MutableLiveData<Int>()
 
-    val allSources = arrayListOf<BookSource>()
+    internal val allSources = arrayListOf<BookSourceImportItem>()
+    private val sourceStore = lazy { BookSourceImportStore(app.cacheDir) }
     val checkSources = arrayListOf<BookSourcePart?>()
     val selectStatus = arrayListOf<Boolean>()
     val newSourceStatus = arrayListOf<Boolean>()
@@ -85,43 +82,55 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
         }
 
     fun importSelect(finally: () -> Unit) {
+        val indices = selectedImportIndices()
         execute {
             val group = groupName?.trim()
             val keepName = AppConfig.importKeepName
             val keepGroup = AppConfig.importKeepGroup
             val keepEnable = AppConfig.importKeepEnable
-            val selectSource = arrayListOf<BookSource>()
-            selectedImportIndices().forEach { index ->
-                val source = allSources[index]
-                checkSources[index]?.let {
-                    if (keepName) {
-                        source.bookSourceName = it.bookSourceName
+            val coroutineContext = currentCoroutineContext()
+            val batches = sequence {
+                var batch = arrayListOf<BookSource>()
+                var bytes = 0L
+                for ((index, source) in selectedImportRecords(indices)) {
+                    coroutineContext.ensureActive()
+                    val size = sourceStore.value.recordSize(index)
+                    if (batch.isNotEmpty() && (batch.size >= 32 || bytes + size > 1024 * 1024)) {
+                        yield(batch)
+                        batch = arrayListOf()
+                        bytes = 0
                     }
-                    if (keepGroup) {
-                        source.bookSourceGroup = it.bookSourceGroup
-                    }
-                    if (keepEnable) {
-                        source.enabled = it.enabled
-                        source.enabledExplore = it.enabledExplore
-                    }
-                    source.customOrder = it.customOrder
-                }
-                if (!group.isNullOrEmpty()) {
-                    if (isAddGroup) {
-                        val groups = linkedSetOf<String>()
-                        source.bookSourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.let {
-                            groups.addAll(it)
+                    checkSources[index]?.let {
+                        if (keepName) source.bookSourceName = it.bookSourceName
+                        if (keepGroup) source.bookSourceGroup = it.bookSourceGroup
+                        if (keepEnable) {
+                            source.enabled = it.enabled
+                            source.enabledExplore = it.enabledExplore
                         }
-                        groups.add(group)
-                        source.bookSourceGroup = groups.joinToString(",")
-                    } else {
-                        source.bookSourceGroup = group
+                        source.customOrder = it.customOrder
                     }
+                    if (!group.isNullOrEmpty()) {
+                        if (isAddGroup) {
+                            val groups = linkedSetOf<String>()
+                            source.bookSourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.let {
+                                groups.addAll(it)
+                            }
+                            groups.add(group)
+                            source.bookSourceGroup = groups.joinToString(",")
+                        } else {
+                            source.bookSourceGroup = group
+                        }
+                    }
+                    batch.add(source)
+                    bytes += size
                 }
-                selectSource.add(source)
+                if (batch.isNotEmpty()) yield(batch)
             }
-            SourceHelp.insertBookSource(*selectSource.toTypedArray())
+            SourceHelp.insertBookSourceBatches(batches)
             ContentProcessor.upReplaceRules()
+        }.onError {
+            AppLog.put("导入书源失败", it)
+            context.toastOnUi("导入书源失败：${it.localizedMessage}")
         }.onFinally {
             finally.invoke()
         }
@@ -131,6 +140,8 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
         execute {
             importSourceText(text.trim(), allowSourceUrls = true)
         }.onError {
+            allSources.clear()
+            releaseSourceStore()
             errorLiveData.postValue("ImportError:${it.localizedMessage}")
             AppLog.put("ImportError:${it.localizedMessage}", it)
         }.onSuccess {
@@ -141,63 +152,26 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
     private suspend fun importSourceText(text: String, allowSourceUrls: Boolean) {
         val content = text.trim()
         when {
-            content.isJsonObject() -> {
-                val sourceUrls = if (allowSourceUrls) {
-                    runCatching {
-                        JsonPath.parse(content).read<List<String>>("$.sourceUrls")
-                    }.getOrNull()
-                } else {
-                    null
-                }
-                if (sourceUrls != null) {
-                    sourceUrls.forEach { importSourceUrl(it) }
-                } else {
-                    val source = GSON.fromJsonObject<BookSource>(content).getOrThrow()
-                    if (source.bookSourceUrl.isEmpty()) throw NoStackTraceException("不是书源")
-                    allSources.add(source)
-                }
-            }
-
-            content.isJsonArray() -> {
-                val items = GSON.fromJsonArray<BookSource>(content).getOrThrow()
-                val source = items.firstOrNull() ?: return
-                if (source.bookSourceUrl.isEmpty()) throw NoStackTraceException("不是书源")
-                allSources.addAll(items)
-            }
-
-            allowSourceUrls && content.isAbsUrl() -> importSourceUrl(content)
-
-            allowSourceUrls && content.isUri() -> {
+            allowSourceUrls && !content.startsWith("[") && !content.startsWith("{") && content.isAbsUrl() ->
+                importSourceUrl(content)
+            allowSourceUrls && !content.startsWith("[") && !content.startsWith("{") && content.isUri() -> {
                 val uri = Uri.parse(content)
-                val payload = uri.inputStream(context).getOrThrow().bufferedReader().use {
-                    it.readText()
+                uri.inputStream(context).getOrThrow().bufferedReader().use {
+                    readBookSourceImport(it, false, ::appendPreviewSource, ::importSourceUrl)
                 }
-                importSourceText(payload, allowSourceUrls = false)
             }
-
-            else -> {
-                JsSourceUpsert.validatePayload(content)?.let {
-                    throw NoStackTraceException(
-                        if (it == JsSourceUpsert.PayloadIssue.EMPTY) {
-                            context.getString(R.string.wrong_format)
-                        } else {
-                            "JS 书源不能超过 1 MiB"
-                        }
-                    )
-                }
-                allSources.add(
-                    withTimeout(30_000L) {
-                        JsSourceConfig.extract(content, currentCoroutineContext())
-                    }
-                )
+            else -> StringReader(content).use {
+                readBookSourceImport(it, allowSourceUrls, ::appendPreviewSource, ::importSourceUrl)
             }
         }
     }
 
     private suspend fun importSourceUrl(url: String) {
-        RuleUpdate.cacheBookSourceMap[url]?.also {
-            allSources.addAll(it)
-            RuleUpdate.cacheBookSourceMap.remove(url)
+        RuleUpdate.cacheBookSourceMap.remove(url)?.also {
+            it.forEach { source ->
+                currentCoroutineContext().ensureActive()
+                appendPreviewSource(source)
+            }
             return
         }
         okHttpClient.newCallResponseBody {
@@ -208,7 +182,7 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
                 url(url)
             }
         }.decompressed().byteStream().bufferedReader().use {
-            importSourceText(it.readText(), allowSourceUrls = false)
+            readBookSourceImport(it, false, ::appendPreviewSource, ::importSourceUrl)
         }
     }
 
@@ -217,7 +191,8 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
             val selectable = linkedSetOf<Int>()
             allSources.forEachIndexed { index, it ->
                 val source = appDb.bookSourceDao.getBookSourcePart(it.bookSourceUrl)
-                val canSelect = !it.isEmptyConfiguration()
+                currentCoroutineContext().ensureActive()
+                val canSelect = !it.emptyConfiguration
                 if (canSelect) selectable.add(index)
                 checkSources.add(source)
                 selectStatus.add(canSelect && (source == null || source.lastUpdateTime < it.lastUpdateTime))
@@ -229,10 +204,11 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
         }
     }
 
-    fun updatePreviewSource(index: Int, source: BookSource) {
+    suspend fun updatePreviewSource(index: Int, source: BookSource) {
         if (index !in allSources.indices) return
-        allSources[index] = source
-        if (source.isEmptyConfiguration()) {
+        val item = withContext(IO) { sourceStore.value.replace(index, source) }
+        allSources[index] = item
+        if (item.emptyConfiguration) {
             selectableIndices = selectableIndices - index
             selectStatus[index] = false
         } else {
@@ -248,9 +224,31 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
         return selection
     }
 
-    /** 提交检查当前完整配置，缓存或选择状态被绕过时也不能导入全空项。 */
+    /** 选择只读轻量索引；提交逐条读完整配置后仍会再次检查。 */
     internal fun selectedImportIndices(): List<Int> = selectStatus.indices.filter { index ->
-        selectStatus[index] && !allSources[index].isEmptyConfiguration()
+        selectStatus[index] && !allSources[index].emptyConfiguration
+    }
+
+    internal fun selectedImportRecords(indices: List<Int>): Sequence<Pair<Int, BookSource>> = sequence {
+        for (index in indices) {
+            val source = sourceStore.value.read(index)
+            if (!source.isEmptyConfiguration()) yield(index to source)
+        }
+    }
+
+    internal fun appendPreviewSource(source: BookSource) {
+        allSources.add(sourceStore.value.append(source))
+    }
+
+    fun previewSourceCode(index: Int): String = GSON.toJson(sourceStore.value.read(index))
+
+    private fun releaseSourceStore() {
+        if (sourceStore.isInitialized()) Coroutine.async { sourceStore.value.close() }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        releaseSourceStore()
     }
 
 }

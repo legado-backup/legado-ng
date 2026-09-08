@@ -170,6 +170,20 @@ object SourceHelp {
         }
     }
 
+    /** 大合集按需读取并分批绑定参数，但仍是一次原子导入，排序也仅在成功后调整一次。 */
+    internal fun insertBookSourceBatches(batches: Sequence<List<BookSource>>) {
+        appDb.runInTransaction {
+            for (batch in batches) {
+                val groups = batch.groupBy { is18Plus(it.bookSourceUrl) }
+                groups[true]?.forEach {
+                    appCtx.toastOnUi("${it.bookSourceName}是18+网址,禁止导入.")
+                }
+                groups[false]?.let { appDb.bookSourceDao.insert(*it.toTypedArray()) }
+            }
+        }
+        Coroutine.async { adjustSortNumber() }
+    }
+
     private fun is18Plus(url: String?): Boolean {
         if (list18Plus.isEmpty()) {
             return false

@@ -46,6 +46,14 @@ class FileAssociationViewModel(application: Application) : BaseAssociationViewMo
     }
 
     private fun dispatch(fileDoc: FileDoc) {
+        // 书源合集不必为了判断类型先整读一遍，更不应先构建整份 JSON 树。
+        val sourceKeys = runCatching {
+            fileDoc.openInputStream().getOrThrow().bufferedReader().use(::firstImportObjectKeys)
+        }.getOrDefault(emptySet())
+        if ("bookSourceUrl" in sourceKeys && "script" !in sourceKeys) {
+            successLive.postValue("bookSource" to fileDoc.uri.toString())
+            return
+        }
         val mimeType = runCatching {
             context.contentResolver.getType(fileDoc.uri)
         }.getOrNull()
