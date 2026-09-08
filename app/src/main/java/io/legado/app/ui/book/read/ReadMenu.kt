@@ -851,11 +851,14 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun showSourceActionPopup(anchor: View) {
-        val showLogin = !ReadBook.bookSource?.loginUrl.isNullOrEmpty()
-        val showChapterPay = showLogin
-                && ReadBook.curTextChapter?.isVip == true
-                && ReadBook.curTextChapter?.isPay != true
-        showSourceActionPopup(showLogin, showChapterPay, anchor)
+        val source = ReadBook.bookSource
+        val visibility = resolveReadSourceActionVisibility(
+            loginUrl = source?.loginUrl,
+            loginUi = source?.loginUi,
+            chapterIsVip = ReadBook.curTextChapter?.isVip == true,
+            chapterIsPay = ReadBook.curTextChapter?.isPay == true,
+        )
+        showSourceActionPopup(visibility.showLogin, visibility.showChapterPay, anchor)
     }
 
     private fun showSourceActionPopup(

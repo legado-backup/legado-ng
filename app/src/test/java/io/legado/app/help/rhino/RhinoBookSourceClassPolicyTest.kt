@@ -10,6 +10,7 @@ import io.legado.app.help.tts.TtsEngineType
 import io.legado.app.model.SharedJsScope
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeUrl
+import io.legado.app.model.jsSource.JsSourceEngine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -284,6 +285,30 @@ class RhinoBookSourceClassPolicyTest {
         assertFalse(RhinoClassShutter.visibleToScripts(className))
         val result = source.evalJS("String(Packages.$className)").toString()
         assertTrue(result, result.startsWith("[JavaPackage "))
+    }
+
+    @Test
+    fun binaryCodecAndTransportStayOnTheSingleFileJsHostFacade() {
+        val source = BookSource(
+            bookSourceUrl = "https://example.com/js-binary-policy",
+            bookSourceName = "JS二进制门面测试",
+            mainJs = """
+                function probe() {
+                    return [
+                        typeof java.postBase64Body,
+                        typeof java.gzipUtf8ToBase64,
+                        typeof java.decompressBase64ToUtf8,
+                        typeof source.postBase64Body
+                    ].join("|");
+                }
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            "function|function|function|undefined",
+            JsSourceEngine(source).callFunction("probe", emptyList()),
+        )
+        assertEquals("undefined", source.evalJS("typeof source.postBase64Body"))
     }
 
     @Test

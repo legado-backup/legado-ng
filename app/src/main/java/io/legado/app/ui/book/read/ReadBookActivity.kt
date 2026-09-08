@@ -68,6 +68,7 @@ import io.legado.app.model.ReadBook
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setChapter
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
+import io.legado.app.model.jsSource.JsSourceEngine
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.isJsonObject
@@ -172,6 +173,7 @@ import com.script.rhino.runScriptWithContext
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
 import io.legado.app.ui.login.SourceLoginJsExtensions
 import java.text.Normalizer
+import kotlin.coroutines.CoroutineContext
 
 /**
  * 阅读界面
@@ -2825,6 +2827,41 @@ class ReadBookActivity : BaseReadBookActivity(),
     /**
      * 点击图片
      */
+    private fun evalImageClick(
+        source: BookSource,
+        java: SourceLoginJsExtensions,
+        book: Book,
+        chapter: BookChapter,
+        click: String,
+        src: String,
+        coroutineContext: CoroutineContext,
+    ): Any? {
+        val result = source.evalJS(click) {
+            put("java", java)
+            put("book", book)
+            put("chapter", chapter)
+            put("result", src)
+        }
+        if (result?.toString() == MAIN_JS_IMAGE_CLICK_DEFERRED &&
+            !source.mainJs.isNullOrBlank()
+        ) {
+            val handled = JsSourceEngine(source, coroutineContext).callFunctionIfExists(
+                "onImageClick",
+                listOf(
+                    "click" to click,
+                    "result" to src,
+                    "book" to book,
+                    "chapter" to chapter,
+                    "uiJava" to java,
+                ),
+            ).isTrue()
+            if (!handled) {
+                throw NoStackTraceException("单文件JS源未处理延迟图片点击")
+            }
+        }
+        return result
+    }
+
     override fun oldClickImg(src: String): Boolean {
         val urlMatcher = paramPattern.matcher(src)
         if (urlMatcher.find()) {
@@ -2838,12 +2875,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                     val book = ReadBook.book ?: return@async
                     val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
                     runScriptWithContext {
-                        source.evalJS(click) {
-                            put("java", java)
-                            put("book", book)
-                            put("chapter", chapter)
-                            put("result", src)
-                        }
+                        evalImageClick(source, java, book, chapter, click, src, coroutineContext)
                     }
                 }.onError {
                     AppLog.put("执行图片链接click键值出错\n${it.localizedMessage}", it, true)
@@ -2877,12 +2909,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             val book = ReadBook.book ?: return@async
             val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
             runScriptWithContext {
-                source.evalJS(click) {
-                    put("java", java)
-                    put("book", book)
-                    put("chapter", chapter)
-                    put("result", src)
-                }
+                evalImageClick(source, java, book, chapter, click, src, coroutineContext)
             }
         }.onError {
             AppLog.put("执行图片链接click键值出错\n${it.localizedMessage}", it, true)
@@ -3379,6 +3406,8 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     companion object {
         const val RESULT_DELETED = 100
+        private const val MAIN_JS_IMAGE_CLICK_DEFERRED =
+            "__legado_main_js_image_click_deferred__"
     }
 
 }

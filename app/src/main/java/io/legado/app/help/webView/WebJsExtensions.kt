@@ -1,18 +1,24 @@
 package io.legado.app.help.webView
 
+import android.graphics.Bitmap
+import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import io.legado.app.data.entities.BaseSource
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.CacheManager
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.help.glide.ImageLoader
 import io.legado.app.help.source.sourceSharedCacheStoreOrNull
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
 import io.legado.app.ui.rss.read.RssJsExtensions
 import io.legado.app.utils.GSON
 import io.legado.app.utils.fromJsonObject
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.io.ByteArrayOutputStream
 import java.lang.ref.WeakReference
 import java.util.UUID
 
@@ -93,6 +99,15 @@ class WebJsExtensions(
                         p3?.toIntOrNull()
                     )
                 }
+                "imageToPngDataUrlAwait" -> imageToPngDataUrl(
+                    activity,
+                    p0 ?: throw NoStackTraceException("error image url null"),
+                    p1?.toIntOrNull()
+                )
+                "imageAssetDataUrlAwait" -> imageAssetDataUrl(
+                    activity,
+                    p0 ?: throw NoStackTraceException("error image asset path null")
+                )
                 "webViewAwait" -> {
                     webView(
                         p0,
@@ -218,7 +233,69 @@ class WebJsExtensions(
         return super.getString(ruleStr, mContent, isUrl)
     }
 
+    private fun imageToPngDataUrl(
+        activity: AppCompatActivity,
+        url: String,
+        requestedMaxDimension: Int?
+    ): String {
+        val httpUrl = url.toHttpUrlOrNull()
+            ?.takeIf { it.isHttps }
+            ?: throw NoStackTraceException("图片转换只允许 HTTPS")
+        val maxDimension = (requestedMaxDimension ?: MAX_IMAGE_DIMENSION)
+            .coerceIn(MIN_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION)
+        val target = ImageLoader.loadBitmap(activity, httpUrl.toString())
+            .override(maxDimension, maxDimension)
+            .disallowHardwareConfig()
+            .submit()
+        return try {
+            val bitmap = target.get()
+            val bytes = ByteArrayOutputStream().use { output ->
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                    throw NoStackTraceException("图片转换 PNG 失败")
+                }
+                output.toByteArray()
+            }
+            if (bytes.size > MAX_IMAGE_DATA_URL_BYTES) {
+                throw NoStackTraceException("转换后的图片过大")
+            }
+            "data:image/png;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } finally {
+            Glide.with(activity).clear(target)
+        }
+    }
+
+    private fun imageAssetDataUrl(activity: AppCompatActivity, path: String): String {
+        val normalized = path.replace('\\', '/').trimStart('/')
+        if (!normalized.startsWith(BOOK_SOURCE_IMAGE_ASSET_PREFIX) ||
+            normalized.contains("../") ||
+            !normalized.matches(IMAGE_ASSET_PATH_PATTERN)
+        ) {
+            throw NoStackTraceException("图片资源路径不允许")
+        }
+        val mimeType = when (normalized.substringAfterLast('.', "").lowercase()) {
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            else -> throw NoStackTraceException("图片资源格式不支持")
+        }
+        val bytes = activity.assets.open(normalized).use { input ->
+            input.readBytes().also {
+                if (it.size > MAX_IMAGE_ASSET_BYTES) {
+                    throw NoStackTraceException("图片资源过大")
+                }
+            }
+        }
+        return "data:$mimeType;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
     companion object{
+        private const val MIN_IMAGE_DIMENSION = 32
+        private const val MAX_IMAGE_DIMENSION = 1024
+        private const val MAX_IMAGE_DATA_URL_BYTES = 5 * 1024 * 1024
+        private const val MAX_IMAGE_ASSET_BYTES = 512 * 1024
+        private const val BOOK_SOURCE_IMAGE_ASSET_PREFIX = "book_source/"
+        private val IMAGE_ASSET_PATH_PATTERN = Regex("[A-Za-z0-9_./-]+")
+
         private fun getRandomLetter(): Char {
             val letters = "abcdefghijklmnopqrstuvwxyz"
             return letters.random()
@@ -291,6 +368,20 @@ class WebJsExtensions(
                     const id = requestId("postAwait");
                     JSBridgeCallbacks[id] = { resolve, reject };
                     java.request("postAwait", params(args), id);
+                });
+            };
+            function imageToPngDataUrlAwait(url, maxDimension) {
+                return new Promise((resolve, reject) => {
+                    const id = requestId("imageToPngDataUrlAwait");
+                    JSBridgeCallbacks[id] = { resolve, reject };
+                    java.request("imageToPngDataUrlAwait", [String(url), maxDimension == null ? null : String(maxDimension)], id);
+                });
+            };
+            function imageAssetDataUrlAwait(path) {
+                return new Promise((resolve, reject) => {
+                    const id = requestId("imageAssetDataUrlAwait");
+                    JSBridgeCallbacks[id] = { resolve, reject };
+                    java.request("imageAssetDataUrlAwait", [String(path)], id);
                 });
             };
             function webViewAwait(...args) {

@@ -1,5 +1,6 @@
 package io.legado.app.model.login
 
+import io.legado.app.data.entities.BookSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -46,5 +47,67 @@ class LoginUiV2Test {
         )
         assertTrue(LoginUiV2.parseActionResult("not json").malformed)
         assertTrue(LoginUiV2.parseActionResult("""{"close":"false"}""").malformed)
+    }
+
+    @Test
+    fun singleFileJsLoginUsesTheDedicatedHostFacade() {
+        val source = BookSource(
+            bookSourceUrl = "https://example.com/single-file-login",
+            bookSourceName = "单文件登录测试",
+            loginUi = LoginUiV2.MARKER,
+            mainJs = """
+                function loginUi(state) {
+                    return {rows:[{
+                        name:typeof java.gzipUtf8ToBase64 + ":" + state.marker,
+                        type:"button",
+                        action:"refresh"
+                    }]};
+                }
+                function loginAction(action, state, form) {
+                    return {state:{
+                        action:action,
+                        previous:state.previous,
+                        value:form.value,
+                        host:typeof java.gzipUtf8ToBase64
+                    }};
+                }
+            """.trimIndent(),
+        )
+
+        val rows = LoginUiV2.parseRender(
+            source.evalLoginUiV2("""{"marker":"ready"}""")
+        )
+        assertEquals("function:ready", rows!!.single().name)
+
+        val command = LoginUiV2.parseActionResult(
+            source.evalLoginActionV2(
+                "refresh",
+                """{"previous":"old"}""",
+                """{"value":"new"}""",
+            )
+        )
+        assertEquals(
+            """{"action":"refresh","previous":"old","value":"new","host":"function"}""",
+            command.stateJson,
+        )
+    }
+
+    @Test
+    fun declarativeLoginKeepsTheLegacyBaseSourceHost() {
+        val source = BookSource(
+            bookSourceUrl = "https://example.com/declarative-login",
+            bookSourceName = "声明式登录测试",
+            loginUi = LoginUiV2.MARKER,
+            loginUrl = """
+                function loginUi(state) {
+                    return {rows:[{name:String(java === source),type:"label"}]};
+                }
+                function loginAction(action, state, form) { return {}; }
+            """.trimIndent(),
+        )
+
+        val rows = LoginUiV2.parseRender(source.evalLoginUiV2("{}"))
+
+        assertEquals("true", rows!!.single().name)
     }
 }

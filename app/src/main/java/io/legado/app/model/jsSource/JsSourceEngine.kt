@@ -1,6 +1,8 @@
 package io.legado.app.model.jsSource
 
 import androidx.collection.LruCache
+import cn.hutool.core.codec.Base64
+import com.google.gson.JsonObject
 import com.script.CompiledScript
 import com.script.ScriptBindings
 import com.script.buildScriptBindings
@@ -11,14 +13,24 @@ import io.legado.app.data.entities.BookSource
 import io.legado.app.exception.NoStackTraceException
 import io.legado.app.help.JsExtensions
 import io.legado.app.help.http.BookSourceCookieStore
+import io.legado.app.help.http.addHeaders
+import io.legado.app.help.http.networkLogSource
+import io.legado.app.help.http.newCallResponse
+import io.legado.app.help.http.okHttpClient
+import io.legado.app.help.http.text
 import io.legado.app.help.source.getShareScope
 import io.legado.app.help.source.scriptCacheObject
 import io.legado.app.help.source.withBookSourceClassPolicy
 import io.legado.app.model.SharedJsScope
 import io.legado.app.quickjs.QuickJsSandboxBridge
 import io.legado.app.utils.GSON
+import io.legado.app.utils.fromJsonObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.htmlunit.corejs.javascript.Context
 import org.htmlunit.corejs.javascript.Function
 import org.htmlunit.corejs.javascript.NativeJSON
@@ -27,7 +39,13 @@ import org.htmlunit.corejs.javascript.ScriptableObject
 import org.htmlunit.corejs.javascript.Undefined
 import org.htmlunit.corejs.javascript.Wrapper
 import splitties.init.appCtx
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
+import java.util.zip.InflaterInputStream
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /**
  * 纯 JavaScript 单文件书源执行器。
@@ -49,6 +67,63 @@ class JsSourceEngine(
 
     /** 仅单文件 JS 运行时可达；QuickJS 本体不暴露给 Rhino。 */
     fun getQuickJsSandbox(): QuickJsSandboxBridge = quickJsSandboxBridge
+
+    /**
+     * 仅单文件 JS 运行时可达。用于协议确实要求原始二进制正文的请求；调用方以 Base64
+     * 传入，避免把任意字节先转换成 UTF-8 字符串而损坏内容。
+     */
+    fun postBase64Body(url: String, bodyBase64: String, headersJson: String?): String {
+        val httpUrl = url.toHttpUrl()
+        require(httpUrl.isHttps) { "二进制请求只允许 HTTPS" }
+        val body = Base64.decode(bodyBase64)
+        require(body.isNotEmpty()) { "二进制请求正文不能为空" }
+        require(body.size <= MAX_BINARY_REQUEST_BYTES) { "二进制请求正文过大" }
+        val headers = headersJson
+            ?.let { GSON.fromJsonObject<Map<String, String>>(it).getOrNull() }
+            ?: emptyMap()
+        val contentType = headers.entries
+            .firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }
+            ?.value
+            ?.toMediaTypeOrNull()
+        val response = runBlocking(coroutineContext ?: EmptyCoroutineContext) {
+            okHttpClient.newCallResponse {
+                url(httpUrl)
+                addHeaders(headers)
+                networkLogSource(source.getTag())
+                post(body.toRequestBody(contentType))
+            }
+        }
+        response.use {
+            return JsonObject().apply {
+                addProperty("code", it.code)
+                addProperty("body", it.body.text())
+            }.toString()
+        }
+    }
+
+    /** 仅单文件 JS 运行时可达；把 UTF-8 文本压成可安全跨 Rhino 边界传递的 Base64。 */
+    fun gzipUtf8ToBase64(value: String): String {
+        val output = ByteArrayOutputStream()
+        GZIPOutputStream(output).use { it.write(value.toByteArray(Charsets.UTF_8)) }
+        return Base64.encode(output.toByteArray())
+    }
+
+    /**
+     * 仅单文件 JS 运行时可达；解开 Base64 中的 gzip/zlib 数据。未压缩输入按 UTF-8 原样返回。
+     */
+    fun decompressBase64ToUtf8(value: String): String {
+        val input = Base64.decode(value)
+        val stream = when {
+            input.size >= 2 && input[0] == 0x1f.toByte() && input[1] == 0x8b.toByte() ->
+                GZIPInputStream(ByteArrayInputStream(input))
+
+            input.size >= 2 && input[0] == 0x78.toByte() ->
+                InflaterInputStream(ByteArrayInputStream(input))
+
+            else -> ByteArrayInputStream(input)
+        }
+        return stream.use { it.readBytes().toString(Charsets.UTF_8) }
+    }
 
     fun callFunction(name: String, args: List<Pair<String, Any?>>): String? {
         return source.withBookSourceClassPolicy {
@@ -120,6 +195,7 @@ class JsSourceEngine(
 
     companion object {
 
+        private const val MAX_BINARY_REQUEST_BYTES = 512 * 1024
         private val scriptCache = LruCache<String, CompiledScript>(64)
 
         private fun compile(script: String): CompiledScript {
