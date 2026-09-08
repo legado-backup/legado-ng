@@ -2320,6 +2320,7 @@
     <string name="reading_padding">Reading margins</string>
     <string name="reading_information">Reading information</string>
     <string name="show_header">Show header</string>
+    <string name="read_header_back_button">Back button</string>
     <string name="show_footer">Show footer</string>
     <string name="read_tip_position">%1$s · %2$s</string>
     <string name="read_tip_used_at">Used in %1$s</string>

@@ -2,8 +2,11 @@ package io.legado.app.ui.book.read.page
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Rect
 import android.graphics.drawable.LayerDrawable
 import android.view.LayoutInflater
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toDrawable
@@ -11,6 +14,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
+import androidx.core.view.isVisible
 import io.legado.app.R
 import io.legado.app.constant.AppConst.timeFormat
 import io.legado.app.data.entities.Bookmark
@@ -43,6 +47,7 @@ class PageView(context: Context) : FrameLayout(context) {
     private val binding = ViewBookPageBinding.inflate(LayoutInflater.from(context), this, true)
     private val readBookActivity get() = activity as? ReadBookActivity
     private var readerOverlayVisible = false
+    private val headerBackBounds = Rect()
     private var battery = 100
     private var tvTitle: BatteryView? = null
     private var tvTime: BatteryView? = null
@@ -72,6 +77,12 @@ class PageView(context: Context) : FrameLayout(context) {
     init {
         if (!isInEditMode) {
             upStyle()
+            binding.ivHeaderBack.setOnClickListener {
+                if (isMainView && binding.llHeader.isVisible && binding.ivHeaderBack.isVisible) {
+                    // Explicit exit: retain finish() bookkeeping without the return-key lock.
+                    readBookActivity?.finish()
+                }
+            }
             binding.vwStatusBar.applyStatusBarPadding()
             binding.vwNavigationBar.applyNavigationBarPadding()
         }
@@ -96,6 +107,14 @@ class PageView(context: Context) : FrameLayout(context) {
             tvHeaderLeft.setColor(it.tipHeaderColor)
             tvHeaderMiddle.setColor(it.tipHeaderColor)
             tvHeaderRight.setColor(it.tipHeaderColor)
+            ivHeaderBack.imageTintList = ColorStateList.valueOf(it.tipHeaderColor)
+            ivHeaderBack.layoutParams = ivHeaderBack.layoutParams.apply {
+                val originalWidth = (tvHeaderLeft.textSize * 2f).toInt()
+                    .coerceAtLeast(24.dpToPx())
+                // Crop horizontal drawable whitespace while keeping the glyph in place.
+                width = originalWidth / 2
+                (this as ViewGroup.MarginLayoutParams).leftMargin = originalWidth / 4
+            }
             tvFooterLeft.setColor(it.tipFooterColor)
             tvFooterMiddle.setColor(it.tipFooterColor)
             tvFooterRight.setColor(it.tipFooterColor)
@@ -173,7 +192,12 @@ class PageView(context: Context) : FrameLayout(context) {
             else -> false
         }
         ReadTipConfig.apply {
-            tvHeaderLeft.isGone = tipHeaderLeft == none
+            ivHeaderBack.isGone = !showHeaderBackButton
+            // Retain the normal text line height when the arrow is the only header content.
+            tvHeaderLeft.isGone = tipHeaderLeft == none && !showHeaderBackButton
+            if (showHeaderBackButton) {
+                tvHeaderLeft.isInvisible = tipHeaderLeft == none
+            }
             tvHeaderRight.isGone = tipHeaderRight == none
             tvHeaderMiddle.isGone = tipHeaderMiddle == none
             tvFooterLeft.isInvisible = tipFooterLeft == none
@@ -433,7 +457,17 @@ class PageView(context: Context) : FrameLayout(context) {
      * 优先处理页面内单击
      * @return true:已处理, false:未处理
      */
-    fun onClick(x: Float, y: Float): Boolean {
+    fun onClick(x: Float, y: Float, upX: Float = x, upY: Float = y): Boolean {
+        if (isMainView && binding.llHeader.isVisible && binding.ivHeaderBack.isVisible) {
+            binding.ivHeaderBack.getDrawingRect(headerBackBounds)
+            offsetDescendantRectToMyCoords(binding.ivHeaderBack, headerBackBounds)
+            if (headerBackBounds.contains(x.toInt(), y.toInt())) {
+                if (headerBackBounds.contains(upX.toInt(), upY.toInt())) {
+                    binding.ivHeaderBack.performClick()
+                }
+                return true
+            }
+        }
         return binding.contentTextView.click(x - imgBgPaddingStart, y - headerHeight)
     }
 

@@ -758,6 +758,7 @@ object ReadBookConfig {
             exportConfig.tipFooterRight = shareConfig.tipFooterRight
             exportConfig.tipColor = shareConfig.tipColor
             exportConfig.headerMode = shareConfig.headerMode
+            exportConfig.showHeaderBackButton = shareConfig.showHeaderBackButton
             exportConfig.footerMode = shareConfig.footerMode
         }
         return exportConfig
@@ -895,6 +896,7 @@ object ReadBookConfig {
         @SerializedName("tipFooterColorNight") var tipFooterColorNight: Int = 0,
         var tipDividerColor: Int = -1,
         var headerMode: Int = 2,
+        @SerializedName("showHeaderBackButton") var showHeaderBackButton: Boolean = false,
         var footerMode: Int = 0,
         /** 仅用于兼容旧配置和排版包传输；运行时规则由 [ReadHighlightRuleStore] 持有。 */
         @SerializedName("highlightRules") var highlightRules: ArrayList<ReadHighlightRule> = arrayListOf(),
@@ -1268,6 +1270,7 @@ object ReadBookConfig {
             "tipColor" to tipColor,
             "tipDividerColor" to tipDividerColor,
             "headerMode" to headerMode,
+            "showHeaderBackButton" to showHeaderBackButton,
             "footerMode" to footerMode
         )
 

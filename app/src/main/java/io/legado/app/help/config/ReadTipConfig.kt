@@ -71,6 +71,12 @@ object ReadTipConfig {
             ReadBookConfig.config.headerMode = value
         }
 
+    var showHeaderBackButton: Boolean
+        get() = ReadBookConfig.config.showHeaderBackButton
+        set(value) {
+            ReadBookConfig.config.showHeaderBackButton = value
+        }
+
     var footerMode: Int
         get() = ReadBookConfig.config.footerMode
         set(value) {

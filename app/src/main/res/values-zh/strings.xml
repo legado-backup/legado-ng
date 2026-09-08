@@ -2221,6 +2221,7 @@
     <string name="reading_padding">阅读边距</string>
     <string name="reading_information">阅读信息</string>
     <string name="show_header">显示页眉</string>
+    <string name="read_header_back_button">返回按钮</string>
     <string name="show_footer">显示页脚</string>
     <string name="read_tip_position">%1$s · %2$s</string>
     <string name="read_tip_used_at">已用于%1$s</string>

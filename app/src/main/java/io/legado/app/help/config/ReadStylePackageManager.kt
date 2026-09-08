@@ -512,7 +512,7 @@ internal object ReadStylePackageManager {
         "footerPaddingRight", "footerPaddingTop", "showHeaderLine", "showFooterLine",
         "tipHeaderLeft", "tipHeaderMiddle", "tipHeaderRight", "tipFooterLeft", "tipFooterMiddle",
         "tipFooterRight", "tipColor", "tipHeaderColor", "tipHeaderColorNight", "tipFooterColor",
-        "tipFooterColorNight", "tipDividerColor", "headerMode", "footerMode", "highlightRules",
+        "tipFooterColorNight", "tipDividerColor", "headerMode", "showHeaderBackButton", "footerMode", "highlightRules",
         "paperEffect", "paperInkStrength", "readScrollFollowBackground",
         "readScrollFollowBackgroundNight", "readScrollFollowBackgroundEInk",
         "underlineDashLength", "underlineStrokeWidth",

@@ -287,6 +287,17 @@ class TipConfigDialog : BaseComposeDialogFragment() {
             onCheckedChange = onEnabledChanged,
         )
         if (!enabled) return
+        if (section == SECTION_HEADER) {
+            ReadConfigSwitchRow(
+                title = getString(R.string.read_header_back_button),
+                checked = ReadTipConfig.showHeaderBackButton,
+                onCheckedChange = { checked ->
+                    ReadTipConfig.showHeaderBackButton = checked
+                    onContentChanged()
+                    postEvent(EventBus.UP_CONFIG, arrayListOf(2))
+                },
+            )
+        }
         Spacer(Modifier.height(6.dp))
         ReadConfigDock(
             labels = listOf(

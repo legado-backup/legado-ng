@@ -21,6 +21,18 @@
         android:gravity="center_vertical"
         app:layout_constraintTop_toBottomOf="@id/vw_status_bar">
 
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/iv_header_back"
+            android:layout_width="24dp"
+            android:layout_height="0dp"
+            android:contentDescription="@string/back"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            app:srcCompat="@drawable/ic_read_header_back"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toTopOf="@id/tv_header_left"
+            app:layout_constraintBottom_toBottomOf="@id/tv_header_left" />
+
         <io.legado.app.ui.widget.BatteryView
             android:id="@+id/tv_header_left"
             android:layout_width="0dp"
@@ -30,7 +42,7 @@
             android:textSize="12sp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintHorizontal_weight="1"
-            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintLeft_toRightOf="@id/iv_header_back"
             app:layout_constraintRight_toLeftOf="@+id/tv_header_right"
             app:layout_constraintTop_toTopOf="parent" />
 
