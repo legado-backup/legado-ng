@@ -76,6 +76,12 @@ object AiConfig {
             appCtx.putPrefBoolean(PreferKey.aiChatFab, value)
         }
 
+    var bookshelfSwipeEnabled: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.aiBookshelfSwipe, true)
+        set(value) {
+            appCtx.putPrefBoolean(PreferKey.aiBookshelfSwipe, value)
+        }
+
     var purifyProviderId: String
         get() = appCtx.getPrefString(PreferKey.aiPurifyProviderId).orEmpty()
         set(value) {

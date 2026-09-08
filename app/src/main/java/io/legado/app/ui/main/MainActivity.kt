@@ -208,7 +208,8 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 aiChatSwipeStartX = event.rawX
                 aiChatSwipeStartY = event.rawY
                 val startLimit = window.decorView.width * AI_CHAT_SWIPE_START_RATIO
-                aiChatSwipeStartedOnBookshelf = pagePosition == 0 &&
+                aiChatSwipeStartedOnBookshelf = AiConfig.bookshelfSwipeEnabled &&
+                        pagePosition == 0 &&
                         event.rawX <= startLimit &&
                         !isTouchInsideBookshelfFloatingDock(event)
             }

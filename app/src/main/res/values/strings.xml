@@ -405,6 +405,9 @@
     <string name="ai_chat_fab">Chat floating button</string>
     <string name="ai_chat_fab_summary_off">Off. Home entry hidden.</string>
     <string name="ai_chat_fab_summary_on">On. Home entry visible.</string>
+    <string name="ai_bookshelf_swipe">Swipe right on bookshelf for AI</string>
+    <string name="ai_bookshelf_swipe_summary_off">Off. Right swipe no longer opens AI.</string>
+    <string name="ai_bookshelf_swipe_summary_on">On. Right swipe opens AI chat.</string>
     <string name="ai_chat_input_hint">Message AI</string>
     <string name="ai_chat_model_required">Select a chat model in model settings first</string>
     <string name="ai_chat_openai_only">AI chat currently supports OpenAI-compatible providers only</string>

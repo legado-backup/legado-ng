@@ -21,6 +21,8 @@ internal data class AiConfigMenuScreenState(
     val skillSummary: String = "",
     val chatFabEnabled: Boolean = false,
     val chatFabSummary: String = "",
+    val bookshelfSwipeEnabled: Boolean = true,
+    val bookshelfSwipeSummary: String = "",
     val purifySummary: String = "",
     val assistantSummary: String = "",
     val readAloudSummary: String = ""
@@ -30,7 +32,8 @@ internal data class AiConfigMenuScreenState(
 internal fun AiConfigMenuScreen(
     state: AiConfigMenuScreenState,
     onOpenPage: (String) -> Unit,
-    onChatFabChanged: (Boolean) -> Unit
+    onChatFabChanged: (Boolean) -> Unit,
+    onBookshelfSwipeChanged: (Boolean) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -60,6 +63,15 @@ internal fun AiConfigMenuScreen(
                 checked = state.chatFabEnabled,
                 onCheckedChange = onChatFabChanged,
                 onClick = { onChatFabChanged(!state.chatFabEnabled) }
+            )
+            AiConfigMenuEntry(
+                title = stringResource(R.string.ai_bookshelf_swipe),
+                summary = state.bookshelfSwipeSummary,
+                iconRes = R.drawable.ic_ai,
+                trailing = NgSettingsTrailing.SWITCH,
+                checked = state.bookshelfSwipeEnabled,
+                onCheckedChange = onBookshelfSwipeChanged,
+                onClick = { onBookshelfSwipeChanged(!state.bookshelfSwipeEnabled) }
             )
             AiConfigMenuEntry(
                 title = stringResource(R.string.ai_purify),

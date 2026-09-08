@@ -45,7 +45,8 @@ class AiConfigMenuFragment : BaseFragment(R.layout.fragment_ai_config_menu) {
                     AiConfigMenuScreen(
                         state = screenState,
                         onOpenPage = ::openPage,
-                        onChatFabChanged = ::updateChatFab
+                        onChatFabChanged = ::updateChatFab,
+                        onBookshelfSwipeChanged = ::updateBookshelfSwipe,
                     )
                 }
             }
@@ -82,6 +83,8 @@ class AiConfigMenuFragment : BaseFragment(R.layout.fragment_ai_config_menu) {
             skillSummary = screenState.skillSummary,
             chatFabEnabled = AiConfig.chatFabEnabled,
             chatFabSummary = chatFabSummary(),
+            bookshelfSwipeEnabled = AiConfig.bookshelfSwipeEnabled,
+            bookshelfSwipeSummary = bookshelfSwipeSummary(),
             purifySummary = getString(
                 R.string.ai_model_function_summary,
                 purifyModelSummary(providers),
@@ -115,6 +118,24 @@ class AiConfigMenuFragment : BaseFragment(R.layout.fragment_ai_config_menu) {
                 R.string.ai_chat_fab_summary_on
             } else {
                 R.string.ai_chat_fab_summary_off
+            }
+        )
+    }
+
+    private fun updateBookshelfSwipe(enabled: Boolean) {
+        AiConfig.bookshelfSwipeEnabled = enabled
+        screenState = screenState.copy(
+            bookshelfSwipeEnabled = enabled,
+            bookshelfSwipeSummary = bookshelfSwipeSummary(),
+        )
+    }
+
+    private fun bookshelfSwipeSummary(): String {
+        return getString(
+            if (AiConfig.bookshelfSwipeEnabled) {
+                R.string.ai_bookshelf_swipe_summary_on
+            } else {
+                R.string.ai_bookshelf_swipe_summary_off
             }
         )
     }

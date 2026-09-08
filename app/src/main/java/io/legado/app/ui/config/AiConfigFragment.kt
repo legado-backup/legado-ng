@@ -567,6 +567,14 @@ class AiConfigFragment : BaseFragment(R.layout.fragment_ai_config), ConfigBackHa
                     R.string.ai_chat_fab_summary_off
                 }
             ),
+            bookshelfSwipeEnabled = AiConfig.bookshelfSwipeEnabled,
+            bookshelfSwipeSummary = getString(
+                if (AiConfig.bookshelfSwipeEnabled) {
+                    R.string.ai_bookshelf_swipe_summary_on
+                } else {
+                    R.string.ai_bookshelf_swipe_summary_off
+                }
+            ),
             purifySummary = getString(
                 R.string.ai_model_function_summary,
                 purifyModelSummaryText(providers),
@@ -1005,6 +1013,10 @@ class AiConfigFragment : BaseFragment(R.layout.fragment_ai_config), ConfigBackHa
                         onOpenPage = ::handleAiMainOpenPage,
                         onChatFabChanged = { enabled ->
                             AiConfig.chatFabEnabled = enabled
+                            refreshMain()
+                        },
+                        onBookshelfSwipeChanged = { enabled ->
+                            AiConfig.bookshelfSwipeEnabled = enabled
                             refreshMain()
                         },
                     )

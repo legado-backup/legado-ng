@@ -403,6 +403,9 @@
     <string name="ai_chat_fab">聊天悬浮按钮</string>
     <string name="ai_chat_fab_summary_off">已关闭，首页不显示入口</string>
     <string name="ai_chat_fab_summary_on">已开启，首页显示入口</string>
+    <string name="ai_bookshelf_swipe">书架右滑进入 AI 助理</string>
+    <string name="ai_bookshelf_swipe_summary_off">已关闭，右滑不再进入</string>
+    <string name="ai_bookshelf_swipe_summary_on">已开启，右滑可进入聊天</string>
     <string name="ai_chat_input_hint">输入消息与 AI 聊天</string>
     <string name="ai_chat_model_required">请先在模型设置中选择聊天模型</string>
     <string name="ai_chat_openai_only">AI 聊天暂只支持 OpenAI 兼容提供商</string>
