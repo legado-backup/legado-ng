@@ -77,6 +77,7 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
     private var highlightSelectionMode = HighlightSelectionMode.NONE
     private var selectedHighlightIds: Set<String> = emptySet()
     private var pendingHighlightExportRules: List<ReadHighlightRule> = emptyList()
+    private var openTipConfigAfterDismiss = false
     private val configFileName = "readConfig.zip"
     private val selectExportDocument = registerForActivityResult(
         CreateDocumentContract("application/zip")
@@ -156,6 +157,12 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         super.onDismiss(dialog)
         ReadBookConfig.save()
         (activity as ReadBookActivity).bottomDialog--
+        if (openTipConfigAfterDismiss) {
+            openTipConfigAfterDismiss = false
+            if (!parentFragmentManager.isStateSaved) {
+                TipConfigDialog().show(parentFragmentManager, "tipConfigDialog")
+            }
+        }
     }
 
     override fun onDestroyView() {
@@ -314,9 +321,7 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         onPadding = {
             PaddingConfigDialog().show(childFragmentManager, "paddingConfigDialog")
         },
-        onTip = {
-            TipConfigDialog().show(childFragmentManager, "tipConfigDialog")
-        },
+        onTip = ::showTipConfigCentered,
         onTextSizeChanged = { value ->
             ReadBookConfig.textSize = value
             updateAdjustState { copy(textSize = value) }
@@ -692,6 +697,12 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         dashLength = ReadBookConfig.dottedBase.coerceIn(1f, 20f),
         gapLength = ReadBookConfig.dottedRatio.coerceIn(1f, 20f),
     )
+
+    private fun showTipConfigCentered() {
+        if (openTipConfigAfterDismiss) return
+        openTipConfigAfterDismiss = true
+        dismiss()
+    }
 
     private fun refreshFullLineUnderlineState() {
         updateEditorState { copy(fullLineUnderline = currentFullLineUnderlineState()) }
