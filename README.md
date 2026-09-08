@@ -8,8 +8,8 @@
 
 **致力于打造下一代阅读体验**
 
-保留自定义书源、本地阅读与高度可定制能力，<br>
-带来统一的 NG 界面、AI 辅助阅读、多角色听书与动态主题体验。
+一款支持自定义书源和本地书籍的 Android 阅读器。<br>
+自由调整阅读样式，用 AI 辅助阅读，为不同角色搭配声音，也能用动态主题装点界面。
 
 [![GitHub Stars](https://img.shields.io/github/stars/joestar817/legado_NG?style=flat-square&logo=github)](https://github.com/joestar817/legado_NG/stargazers)
 [![GitHub Release](https://img.shields.io/github/v/release/joestar817/legado_NG?include_prereleases&style=flat-square&label=release)](https://github.com/joestar817/legado_NG/releases/latest)
@@ -25,36 +25,34 @@
 
 ## 为什么选择 Legado NG
 
-- **更现代、美观的 UI**：主要页面经过重新设计，提供统一的 NG 界面与丰富的主题效果。
-- **融入 AI 生态**：支持 AI 净化、AI 扫书、阅读助手、Skills、工具调用与 MCP。
-- **完全重构的 TTS 体系**：重新设计朗读引擎、发音人和角色音色管理，支持多人朗读与有声书播放。
+- **更丰富的界面与主题**：重新设计主要页面，提供透明玻璃、液态玻璃和动态背景等多种效果。
+- **AI 辅助阅读**：净化正文、分析书籍，也可以围绕正在读的书与 AI 对话。
+- **更自由的听书体验**：管理朗读引擎和发音人，为不同角色搭配音色，支持多人朗读与有声书播放。
 
 ## 核心能力
 
 |  | 功能 | 说明 |
 | :---: | --- | --- |
-| 📖 | 在线与本地阅读 | 支持自定义书源、多源搜索、发现、换源、目录与正文规则，也可扫描或导入本地 TXT、EPUB 文件 |
-| 🗂️ | 书架与书籍管理 | 支持列表、网格、分组、排序、阅读记录、书签、关联作品和单本书快捷操作 |
-| 🎨 | NG 界面与主题 | 支持透明／液态玻璃视觉体系、柔光与动态场景主题、独立阅读配色、悬浮控件和多种翻页方式 |
-| ✨ | AI 阅读辅助 | 支持段落／章节净化、替换规则生成、书籍分析、角色卡和基于当前书籍上下文的对话 |
-| 🎧 | 多角色听书 | 支持系统及在线朗读引擎、角色分镜、音色路由、跨章播放、预缓存、进度跳转与有声书离线缓存 |
-| 🧩 | 书源与规则 | 支持书源导入、编辑、登录、分组、批量操作、步骤调试，以及替换规则分组、作用域和生效结果查看 |
-| 🔌 | AI 与扩展能力 | 支持多 AI 提供商、Skills、工具调用和内置 MCP 服务，为书籍、章节、缓存与上下文提供扩展入口 |
-| ☁️ | 数据与配置 | 支持 WebDAV 备份恢复，以及书源、订阅源、主题、阅读排版和朗读引擎配置导入 |
-| 🛠️ | 调试与日志 | 支持书源步骤调试、代码高亮、调试日志、网络日志、敏感信息脱敏和日志导出 |
+| 📖 | 在线与本地阅读 | 导入自定义书源，搜索多个来源、浏览发现、切换书源；也可扫描或导入本地 TXT、EPUB 文件 |
+| 🗂️ | 书架与书籍管理 | 列表或网格展示书籍，支持分组、排序、阅读记录、书签、关联作品和书籍快捷操作 |
+| 🎨 | 界面与主题 | 透明玻璃、液态玻璃、柔光和动态背景；可单独设置阅读配色，选择悬浮控件和翻页方式 |
+| ✨ | AI 阅读辅助 | 净化段落或章节、生成替换规则、分析书籍、整理角色卡，并结合当前书籍内容对话 |
+| 🎧 | 多角色听书 | 使用系统或在线朗读引擎，为角色分配声音；支持跨章播放、提前缓存、进度跳转和有声书离线缓存 |
+| 🧩 | 书源与规则 | 导入、编辑、登录、分组和批量管理书源，编写目录与正文规则；为替换规则分组、指定适用范围并查看效果 |
+| 🔌 | AI 服务与扩展 | 接入多家 AI 服务，通过技能（Skills）和工具调用扩展 AI 功能；内置 MCP 服务，供外部工具访问书籍、章节等数据 |
+| ☁️ | 备份与配置 | 通过 WebDAV 备份和恢复数据，导入书源、订阅源、主题、阅读排版和朗读引擎配置 |
+| 🛠️ | 调试与日志 | 逐步调试书源规则，查看高亮代码、调试日志和网络日志；支持隐藏日志中的敏感信息及导出日志 |
 
 ## 当前状态
 
-Legado NG 本轮主要界面与体验重构已基本收口，当前重点转向稳定性、兼容性、性能和细节打磨。
+Legado NG 持续开发中，后续会继续修复问题、改善兼容性和运行速度，并完善使用细节。
 
 - 基础阅读、书架、搜索换源、规则管理、设置与备份等主要流程可正常使用。
-- AI、在线朗读和 MCP 能力需要用户自行配置相应服务。
-- 隔离式 QuickJS 仅用于少量有特殊需求的 JS 书源，目前属于实验性能力。
-- 新功能与界面细节仍会根据实际使用反馈继续调整。
+- AI、在线朗读和 MCP 功能需要自行配置后使用。
+- 少量 JavaScript 书源使用的独立脚本运行环境（QuickJS）仍处于实验阶段。
+- 欢迎通过 Issues 或交流群反馈使用中遇到的问题。
 
-## UI 展示
-
-以下截图展示“我的”、AI 提供商、发音人管理和关于页面，不包含书架作品或正文内容。
+## 界面展示
 
 <p align="center">
   <a href="docs/images/readme/ng-my.webp"><img src="docs/images/readme/ng-my.webp" width="23%" alt="Legado NG 我的页面" /></a>
@@ -67,20 +65,18 @@ Legado NG 本轮主要界面与体验重构已基本收口，当前重点转向�
 
 前往 **[GitHub Releases](https://github.com/joestar817/legado_NG/releases/latest)** 下载最新 APK。
 
-首次使用时，可以导入自己的书源或订阅源，也可以直接导入本地 TXT／EPUB 文件。AI 与在线朗读能力均为可选配置，不影响基础阅读功能。
+首次使用时，可以导入自己的书源或订阅源，也可以直接导入本地 TXT／EPUB 文件。AI 和在线朗读按需配置，不影响基础阅读。
 
-Legado NG 使用独立包名前缀，可与阅读原版、阅读 Sigma 同时安装，应用数据相互独立。
+Legado NG 可与阅读原版、阅读 Sigma 同时安装，各自保存应用数据。
 
 | 类型 | 包名 |
 | --- | --- |
-| 对外分发版 | `io.legado.app.ng.release` |
+| 正式版 | `io.legado.app.ng.release` |
 | 调试版 | `io.legado.app.ng.debug` |
 
 ## 项目关系
 
-Legado NG 基于 Legado 生态及阅读 Sigma 的历史代码基础持续演进，保留规则生态与高度自定义能力，同时独立推进 NG 界面、AI 阅读、多角色听书和动态主题等方向。
-
-项目名称中的“NG”代表 **Next Generation**，中文名称统一使用“阅读 NG”，英文名称统一使用“Legado NG”。
+Legado NG 从阅读 Sigma 的代码发展而来，沿用 Legado 的书源规则和阅读功能，并在此基础上改进界面，加入 AI 辅助阅读、多角色听书和动态主题。
 
 ## 使用须知
 
@@ -93,7 +89,6 @@ Legado NG 只提供阅读器、规则引擎和相关管理工具，不提供任�
 ## 交流与帮助
 
 - [下载最新版](https://github.com/joestar817/legado_NG/releases/latest)
-- [应用更新日志](app/src/main/assets/updateLog.md)
 - [使用帮助](app/src/main/assets/web/help/md/appHelp.md)
 - [Telegram 交流反馈群组](https://t.me/+lYttMZGrQ1RkOTE1)
 - [GitHub Issues](https://github.com/joestar817/legado_NG/issues)
@@ -112,7 +107,7 @@ Legado NG 的“湖畔樱花”“好奇猫咪”动态主题及播放器“雨�
 
 ## 致谢
 
-Legado NG 的演进离不开 Legado 生态及众多优秀开源项目：
+感谢以下项目提供的代码、设计与实现参考：
 
 - [gedoor/legado](https://github.com/gedoor/legado) — Legado 原项目，为规则生态和核心阅读能力奠定了基础。
 - [Luoyacheng/legado-E](https://github.com/Luoyacheng/legado-E) — 阅读 Sigma，Legado NG 最初的直接代码基础。
@@ -120,7 +115,7 @@ Legado NG 的演进离不开 Legado 生态及众多优秀开源项目：
 - [LegadoTeam/legado](https://github.com/LegadoTeam/legado) — 阅读 Beta，Legado NG 的单文件 JavaScript 书源支持直接参考了其实现。
 - [skybbk1001/legadoT](https://github.com/skybbk1001/legadoT) — 阅读 T；Legado NG 所参考的单文件 JavaScript 书源方案最初由该项目作者实现。
 - [HapeLee/legado-with-MD3](https://github.com/HapeLee/legado-with-MD3) — 主题体系相关设计参考。
-- [rikkahub/rikkahub](https://github.com/rikkahub/rikkahub) — AI Provider、模型配置和聊天体验的重要参考。
+- [rikkahub/rikkahub](https://github.com/rikkahub/rikkahub) — AI 服务商管理、模型配置和聊天体验的重要参考。
 - 感谢本项目使用的所有开源依赖、素材作者、贡献者和测试者。
 
 ## 许可证
@@ -131,7 +126,7 @@ Legado NG 的演进离不开 Legado 生态及众多优秀开源项目：
 
 <div align="center">
 
-如果 Legado NG 对你有帮助，欢迎点亮一个 ⭐，让更多喜欢自由阅读、AI 辅助与多人听书的人发现它。
+如果 Legado NG 对你有帮助，欢迎点个 ⭐ 支持项目。
 
 **[Star](https://github.com/joestar817/legado_NG)** ·
 **[Releases](https://github.com/joestar817/legado_NG/releases/latest)** ·

@@ -65,6 +65,7 @@
     <string name="book_source_import_state_new">New</string>
     <string name="book_source_import_state_update">Update</string>
     <string name="book_source_import_state_existing">Existing</string>
+    <string name="book_source_import_state_invalid">Invalid source</string>
     <string name="book_source_import_group_mode">Group mode</string>
     <string name="book_source_import_replace_group">Replace original groups</string>
     <string name="book_source_import_add_group">Add to original groups</string>

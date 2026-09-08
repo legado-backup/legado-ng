@@ -65,6 +65,7 @@
     <string name="book_source_import_state_new">新增</string>
     <string name="book_source_import_state_update">更新</string>
     <string name="book_source_import_state_existing">已有</string>
+    <string name="book_source_import_state_invalid">无效书源</string>
     <string name="book_source_import_group_mode">分组方式</string>
     <string name="book_source_import_replace_group">替换原分组</string>
     <string name="book_source_import_add_group">添加到原分组</string>

@@ -19,6 +19,7 @@ import io.legado.app.help.http.decompressed
 import io.legado.app.help.http.newCallResponseBody
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.help.source.SourceHelp
+import io.legado.app.help.source.isEmptyConfiguration
 import io.legado.app.model.RuleUpdate
 import io.legado.app.model.jsSource.JsSourceConfig
 import io.legado.app.model.jsSource.JsSourceUpsert
@@ -46,21 +47,16 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
     val selectStatus = arrayListOf<Boolean>()
     val newSourceStatus = arrayListOf<Boolean>()
     val updateSourceStatus = arrayListOf<Boolean>()
+    var selectableIndices: Set<Int> = emptySet()
+        private set
 
     val isSelectAll: Boolean
-        get() {
-            selectStatus.forEach {
-                if (!it) {
-                    return false
-                }
-            }
-            return true
-        }
+        get() = selectableIndices.isNotEmpty() && selectableIndices.all { selectStatus[it] }
 
     val isSelectAllNew: Boolean
         get() {
             newSourceStatus.forEachIndexed { index, b ->
-                if (b && !selectStatus[index]) {
+                if (b && index in selectableIndices && !selectStatus[index]) {
                     return false
                 }
             }
@@ -70,7 +66,7 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
     val isSelectAllUpdate: Boolean
         get() {
             updateSourceStatus.forEachIndexed { index, b ->
-                if (b && !selectStatus[index]) {
+                if (b && index in selectableIndices && !selectStatus[index]) {
                     return false
                 }
             }
@@ -80,8 +76,8 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
     val selectCount: Int
         get() {
             var count = 0
-            selectStatus.forEach {
-                if (it) {
+            selectStatus.forEachIndexed { index, selected ->
+                if (selected && index in selectableIndices) {
                     count++
                 }
             }
@@ -95,36 +91,34 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
             val keepGroup = AppConfig.importKeepGroup
             val keepEnable = AppConfig.importKeepEnable
             val selectSource = arrayListOf<BookSource>()
-            selectStatus.forEachIndexed { index, b ->
-                if (b) {
-                    val source = allSources[index]
-                    checkSources[index]?.let {
-                        if (keepName) {
-                            source.bookSourceName = it.bookSourceName
-                        }
-                        if (keepGroup) {
-                            source.bookSourceGroup = it.bookSourceGroup
-                        }
-                        if (keepEnable) {
-                            source.enabled = it.enabled
-                            source.enabledExplore = it.enabledExplore
-                        }
-                        source.customOrder = it.customOrder
+            selectedImportIndices().forEach { index ->
+                val source = allSources[index]
+                checkSources[index]?.let {
+                    if (keepName) {
+                        source.bookSourceName = it.bookSourceName
                     }
-                    if (!group.isNullOrEmpty()) {
-                        if (isAddGroup) {
-                            val groups = linkedSetOf<String>()
-                            source.bookSourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.let {
-                                groups.addAll(it)
-                            }
-                            groups.add(group)
-                            source.bookSourceGroup = groups.joinToString(",")
-                        } else {
-                            source.bookSourceGroup = group
-                        }
+                    if (keepGroup) {
+                        source.bookSourceGroup = it.bookSourceGroup
                     }
-                    selectSource.add(source)
+                    if (keepEnable) {
+                        source.enabled = it.enabled
+                        source.enabledExplore = it.enabledExplore
+                    }
+                    source.customOrder = it.customOrder
                 }
+                if (!group.isNullOrEmpty()) {
+                    if (isAddGroup) {
+                        val groups = linkedSetOf<String>()
+                        source.bookSourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.let {
+                            groups.addAll(it)
+                        }
+                        groups.add(group)
+                        source.bookSourceGroup = groups.joinToString(",")
+                    } else {
+                        source.bookSourceGroup = group
+                    }
+                }
+                selectSource.add(source)
             }
             SourceHelp.insertBookSource(*selectSource.toTypedArray())
             ContentProcessor.upReplaceRules()
@@ -220,15 +214,43 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
 
     private fun comparisonSource() {
         execute {
-            allSources.forEach {
+            val selectable = linkedSetOf<Int>()
+            allSources.forEachIndexed { index, it ->
                 val source = appDb.bookSourceDao.getBookSourcePart(it.bookSourceUrl)
+                val canSelect = !it.isEmptyConfiguration()
+                if (canSelect) selectable.add(index)
                 checkSources.add(source)
-                selectStatus.add(source == null || source.lastUpdateTime < it.lastUpdateTime)
+                selectStatus.add(canSelect && (source == null || source.lastUpdateTime < it.lastUpdateTime))
                 newSourceStatus.add(source == null)
                 updateSourceStatus.add(source != null && source.lastUpdateTime < it.lastUpdateTime)
             }
+            selectableIndices = selectable
             successLiveData.postValue(allSources.size)
         }
+    }
+
+    fun updatePreviewSource(index: Int, source: BookSource) {
+        if (index !in allSources.indices) return
+        allSources[index] = source
+        if (source.isEmptyConfiguration()) {
+            selectableIndices = selectableIndices - index
+            selectStatus[index] = false
+        } else {
+            selectableIndices = selectableIndices + index
+        }
+    }
+
+    fun applySelection(indices: Set<Int>): Set<Int> {
+        val selection = indices.intersect(selectableIndices)
+        selectStatus.indices.forEach { index ->
+            selectStatus[index] = index in selection
+        }
+        return selection
+    }
+
+    /** 提交检查当前完整配置，缓存或选择状态被绕过时也不能导入全空项。 */
+    internal fun selectedImportIndices(): List<Int> = selectStatus.indices.filter { index ->
+        selectStatus[index] && !allSources[index].isEmptyConfiguration()
     }
 
 }

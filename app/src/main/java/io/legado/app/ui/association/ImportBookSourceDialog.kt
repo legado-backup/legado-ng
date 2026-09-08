@@ -123,6 +123,7 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
         referentialEqualityPolicy(),
     )
     private var selectedIndices by mutableStateOf<Set<Int>>(emptySet())
+    private var selectableIndices by mutableStateOf<Set<Int>>(emptySet())
     private var loading by mutableStateOf(true)
     private var importing by mutableStateOf(false)
     private var error by mutableStateOf<String?>(null)
@@ -156,8 +157,9 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
                     sources = sources,
                     localSources = viewModel.checkSources,
                     selectedIndices = selectedIndices,
-                    newSourceCount = viewModel.newSourceStatus.count { it },
-                    updateSourceCount = viewModel.updateSourceStatus.count { it },
+                    selectableIndices = selectableIndices,
+                    newSourceCount = selectableIndices.count { viewModel.newSourceStatus[it] },
+                    updateSourceCount = selectableIndices.count { viewModel.updateSourceStatus[it] },
                     loading = loading,
                     importing = importing,
                     error = error,
@@ -258,6 +260,7 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
             if (count > 0) {
                 error = null
                 sources = viewModel.allSources.toList()
+                selectableIndices = viewModel.selectableIndices
                 applySelection(
                     viewModel.selectStatus.indices.filterTo(linkedSetOf()) { index ->
                         viewModel.selectStatus[index]
@@ -282,7 +285,7 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
     }
 
     private fun toggleSelection(index: Int) {
-        if (index !in sources.indices) return
+        if (index !in selectableIndices) return
         applySelection(selectedIndices.toMutableSet().apply {
             if (!add(index)) remove(index)
         })
@@ -290,17 +293,17 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
 
     private fun toggleAll() {
         applySelection(
-            if (sources.isNotEmpty() && selectedIndices.size == sources.size) {
+            if (selectableIndices.isNotEmpty() && selectedIndices == selectableIndices) {
                 emptySet()
             } else {
-                sources.indices.toSet()
+                selectableIndices
             }
         )
     }
 
     private fun toggleMatchingSources(statuses: List<Boolean>) {
         val matchingIndices = statuses.indices.filter {
-            it in sources.indices && statuses[it]
+            it in selectableIndices && statuses[it]
         }
         if (matchingIndices.isEmpty()) return
         val shouldSelect = matchingIndices.any { it !in selectedIndices }
@@ -312,10 +315,7 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
     }
 
     private fun applySelection(indices: Set<Int>) {
-        selectedIndices = indices.filterTo(linkedSetOf()) { it in sources.indices }
-        viewModel.selectStatus.indices.forEach { index ->
-            viewModel.selectStatus[index] = index in selectedIndices
-        }
+        selectedIndices = viewModel.applySelection(indices)
     }
 
     private fun viewSource(index: Int) {
@@ -330,6 +330,7 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
     }
 
     private fun importSelected() {
+        applySelection(selectedIndices)
         if (importing || selectedIndices.isEmpty()) return
         updateImporting(true)
         viewModel.importSelect {
@@ -351,8 +352,10 @@ class ImportBookSourceDialog() : BottomSheetDialogFragment(), CodeDialog.Callbac
         val index = requestId?.toIntOrNull() ?: return
         if (index !in sources.indices) return
         GSON.fromJsonObject<BookSource>(code).getOrNull()?.let { source ->
-            viewModel.allSources[index] = source
+            viewModel.updatePreviewSource(index, source)
             sources = sources.toMutableList().apply { set(index, source) }
+            selectableIndices = viewModel.selectableIndices
+            applySelection(selectedIndices)
         }
     }
 
@@ -373,6 +376,7 @@ private fun BookSourceImportDrawer(
     sources: List<BookSource>,
     localSources: List<BookSourcePart?>,
     selectedIndices: Set<Int>,
+    selectableIndices: Set<Int>,
     newSourceCount: Int,
     updateSourceCount: Int,
     loading: Boolean,
@@ -423,6 +427,7 @@ private fun BookSourceImportDrawer(
                     sources = sources,
                     localSources = localSources,
                     selectedIndices = selectedIndices,
+                    selectableIndices = selectableIndices,
                     newSourceCount = newSourceCount,
                     updateSourceCount = updateSourceCount,
                     loading = loading,
@@ -482,6 +487,7 @@ private fun ColumnScope.BookSourceImportMainContent(
     sources: List<BookSource>,
     localSources: List<BookSourcePart?>,
     selectedIndices: Set<Int>,
+    selectableIndices: Set<Int>,
     newSourceCount: Int,
     updateSourceCount: Int,
     loading: Boolean,
@@ -514,6 +520,7 @@ private fun ColumnScope.BookSourceImportMainContent(
         sources = sources,
         localSources = localSources,
         selectedIndices = selectedIndices,
+        selectableIndices = selectableIndices,
         loading = loading,
         error = error,
         showComment = showComment,
@@ -525,10 +532,10 @@ private fun ColumnScope.BookSourceImportMainContent(
     )
     Spacer(Modifier.height(8.dp))
     BookSourceImportActions(
-        allSelected = sources.isNotEmpty() && selectedIndices.size == sources.size,
+        allSelected = selectableIndices.isNotEmpty() && selectedIndices == selectableIndices,
         selectedCount = selectedIndices.size,
         importing = importing,
-        hasSources = sources.isNotEmpty(),
+        hasSources = selectableIndices.isNotEmpty(),
         onToggleAll = onToggleAll,
         onDismiss = onDismiss,
         onImport = onImport,
@@ -615,6 +622,7 @@ private fun BookSourceImportList(
     sources: List<BookSource>,
     localSources: List<BookSourcePart?>,
     selectedIndices: Set<Int>,
+    selectableIndices: Set<Int>,
     loading: Boolean,
     error: String?,
     showComment: Boolean,
@@ -646,6 +654,7 @@ private fun BookSourceImportList(
                             source = source,
                             localSource = localSources.getOrNull(index),
                             selected = index in selectedIndices,
+                            selectable = index in selectableIndices,
                             showComment = showComment,
                             onToggle = { onToggle(index) },
                             onViewSource = { onViewSource(index) },
@@ -701,6 +710,7 @@ private fun BookSourceImportRow(
     source: BookSource,
     localSource: BookSourcePart?,
     selected: Boolean,
+    selectable: Boolean,
     showComment: Boolean,
     onToggle: () -> Unit,
     onViewSource: () -> Unit,
@@ -717,27 +727,41 @@ private fun BookSourceImportRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = BookSourceImportRowMinHeight)
-                .clickable(role = Role.Checkbox, onClick = onToggle)
+                .clickable(enabled = selectable, role = Role.Checkbox, onClick = onToggle)
                 .padding(start = 8.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             NgFileSelectionCheckbox(
-                checked = selected,
+                checked = selected && selectable,
                 onCheckedChange = { onToggle() },
+                enabled = selectable,
                 variant = NgFileSelectionCheckboxVariant.COMPACT,
             )
-            Text(
-                text = source.bookSourceName,
+            Row(
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 8.dp, end = 8.dp),
-                color = Color(NgTheme.colors.onSurface),
-                fontSize = 15.sp,
-                lineHeight = 19.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = source.bookSourceName,
+                    modifier = Modifier.weight(1f, fill = false),
+                    color = Color(NgTheme.colors.onSurface),
+                    fontSize = 15.sp,
+                    lineHeight = 19.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (!selectable) {
+                    NgStatusTag(
+                        text = stringResource(R.string.book_source_import_state_invalid),
+                        variant = NgStatusTagVariant.ERROR,
+                        style = NgStatusTagStyle.INLINE,
+                    )
+                }
+            }
             NgStatusTag(
                 text = stringResource(state.labelRes),
                 variant = state.variant,
