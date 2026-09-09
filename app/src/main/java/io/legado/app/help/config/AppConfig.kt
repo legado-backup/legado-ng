@@ -836,7 +836,7 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
         }
 
     var tocUiUseReplace: Boolean
-        get() = appCtx.getPrefBoolean(PreferKey.tocUiUseReplace)
+        get() = appCtx.getPrefBoolean(PreferKey.tocUiUseReplace, true)
         set(value) {
             appCtx.putPrefBoolean(PreferKey.tocUiUseReplace, value)
         }

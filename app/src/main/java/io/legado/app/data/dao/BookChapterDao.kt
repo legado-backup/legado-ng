@@ -6,9 +6,16 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import io.legado.app.data.entities.BookChapter
+import io.legado.app.data.entities.CatalogOutlineEntry
 
 @Dao
 interface BookChapterDao {
+
+    @Query("select url, `index`, isVolume from chapters where bookUrl = :bookUrl order by `index`")
+    fun getCatalogOutline(bookUrl: String): List<CatalogOutlineEntry>
+
+    @Query("select * from chapters where bookUrl = :bookUrl and `index` in (:indices)")
+    fun getChaptersByIndices(bookUrl: String, indices: List<Int>): List<BookChapter>
 
     @Query("SELECT * FROM chapters where bookUrl = :bookUrl and title like '%'||:key||'%' order by `index`")
     fun search(bookUrl: String, key: String): List<BookChapter>

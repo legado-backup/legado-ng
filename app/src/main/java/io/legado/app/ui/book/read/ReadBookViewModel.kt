@@ -255,11 +255,17 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
     /**
      * 加载目录
      */
-    fun loadChapterList(book: Book) {
+    fun loadChapterList(book: Book, complete: ((Boolean) -> Unit)? = null) {
         execute {
-            if (loadChapterListAwait(book)) {
+            val success = loadChapterListAwait(book)
+            if (success) {
                 ReadBook.upMsg(null)
             }
+            success
+        }.onSuccess {
+            complete?.invoke(it)
+        }.onError {
+            complete?.invoke(false)
         }
     }
 
