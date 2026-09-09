@@ -27,6 +27,8 @@ import io.legado.app.constant.EventBus
 import io.legado.app.help.DefaultData
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
+import io.legado.app.help.config.ReadPresetPreferences
+import io.legado.app.help.config.ReadStylePackageManager
 import io.legado.app.help.config.ReadHighlightRule
 import io.legado.app.help.config.ReadHighlightRulePackageManager
 import io.legado.app.help.config.ReadHighlightRuleStore
@@ -78,21 +80,33 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
     private var highlightDraft: ReadHighlightRule? = null
     private var highlightSelectionMode = HighlightSelectionMode.NONE
     private var selectedHighlightIds: Set<String> = emptySet()
-    private var pendingHighlightExportRules: List<ReadHighlightRule> = emptyList()
+    private var pendingHighlightExportName: String? = null
+    private var pendingPresetExportName: String? = null
+    private var preparingPresetExport = false
+    private var preparingHighlightExport = false
     private var openTipConfigAfterDismiss = false
     private val configFileName = "readConfig.zip"
     private val selectExportDocument = registerForActivityResult(
         CreateDocumentContract("application/zip")
-    ) { uri -> uri?.let(::exportConfig) }
+    ) { uri ->
+        val name = pendingPresetExportName
+        pendingPresetExportName = null
+        if (uri != null) exportPreparedPackage(uri, name, "阅读预设")
+        else name?.let { File(requireContext().filesDir, it).delete() }
+    }
     private val selectImportDocument = registerForActivityResult(
         SelectFileContract()
     ) { uri -> uri?.let(::importConfig) }
     private val selectHighlightExportDocument = registerForActivityResult(
         CreateDocumentContract("application/zip")
     ) { uri ->
-        val rules = pendingHighlightExportRules
-        pendingHighlightExportRules = emptyList()
-        uri?.let { exportHighlightRules(it, rules) }
+        val packageName = pendingHighlightExportName
+        pendingHighlightExportName = null
+        if (uri != null) {
+            exportPreparedPackage(uri, packageName, "高亮规则")
+        } else {
+            packageName?.let { File(requireContext().filesDir, it).delete() }
+        }
     }
     private val selectHighlightImportDocument = registerForActivityResult(
         SelectFileContract()
@@ -106,6 +120,18 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
     private val selectHighlightFont = registerForActivityResult(
         SelectFileContract()
     ) { uri -> uri?.let { installHighlightResource(it, "font") } }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        pendingHighlightExportName = savedInstanceState?.getString("pendingHighlightExportName")
+        pendingPresetExportName = savedInstanceState?.getString("pendingPresetExportName")
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("pendingHighlightExportName", pendingHighlightExportName)
+        outState.putString("pendingPresetExportName", pendingPresetExportName)
+    }
 
     override fun onStart() {
         super.onStart()
@@ -194,7 +220,7 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         },
         onEditPreset = { openEditor(ReadBookConfig.styleSelect) },
         onExportPreset = {
-            selectExportDocument.launch(currentExportFileName())
+            preparePresetExport()
         },
         onDeletePreset = ::deleteCurrentStyle,
         onRestoreCurrentPreset = ::confirmRestoreCurrentPreset,
@@ -1077,10 +1103,9 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         if (selectedRules.isEmpty()) return
         when (highlightSelectionMode) {
             HighlightSelectionMode.EXPORT -> {
-                pendingHighlightExportRules = selectedRules
                 clearHighlightSelection(refresh = false)
                 refreshUi()
-                selectHighlightExportDocument.launch("highlightRules.zip")
+                prepareHighlightExport(selectedRules)
             }
 
             HighlightSelectionMode.DELETE -> {
@@ -1242,21 +1267,26 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
             ReadBookConfig.importWithReport(uri.readBytes(requireContext()))
         }.onSuccess { result ->
             val appendResult = ReadBookConfig.appendImportedConfigWithReport(result.config)
+            result.readerSettings?.let(ReadPresetPreferences::apply)
             ReadBookConfig.styleSelect = appendResult.index
             editorBackgroundCache = null
             refreshUi()
             postEvent(
                 EventBus.UP_CONFIG,
                 if (appendResult.highlightRuleMerge == null) {
-                    arrayListOf(1, 2, 5)
+                    arrayListOf(0, 1, 2, 5)
                 } else {
-                    arrayListOf(1, 2, 5, 8)
+                    arrayListOf(0, 1, 2, 5, 8)
                 },
             )
             notifyFloatingAppearanceChanged()
+            if (result.readerSettings != null) {
+                postEvent(io.legado.app.constant.PreferKey.textSelectAble, AppConfig.textSelectAble)
+                callBack?.setOrientation()
+            }
             val messages = result.warnings.toMutableList().apply {
                 appendResult.highlightRuleMerge?.let {
-                    add("已合并 ${it.addedCount} 条高亮规则，跳过 ${it.skippedCount} 条重复规则")
+                    add("高亮规则新增 ${it.addedCount} 条，更新 ${it.updatedCount} 条，跳过 ${it.skippedCount} 条")
                 }
             }
             if (messages.isEmpty()) {
@@ -1270,19 +1300,35 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         }
     }
 
-    private fun exportConfig(uri: Uri) {
+    private fun preparePresetExport() {
+        if (preparingPresetExport || pendingPresetExportName != null) {
+            toastOnUi("已有阅读预设导出任务，请稍候")
+            return
+        }
+        preparingPresetExport = true
         val exportFileName = currentExportFileName()
+        val snapshot = ReadBookConfig.getExportConfig()
+        val settings = ReadPresetPreferences.capture()
+        val packageFile = File(requireContext().filesDir, ".pending-read-style-${UUID.randomUUID()}.zip")
         execute {
-            uri.outputStream(requireContext()).getOrThrow().use { output ->
-                ReadBookConfig.exportWithReport(output)
+            try {
+                packageFile.outputStream().use { output ->
+                    ReadStylePackageManager.export(snapshot, output, settings)
+                }
+            } catch (error: Throwable) {
+                packageFile.delete()
+                throw error
             }
-        }.onSuccess { result ->
-            if (result.warnings.isEmpty()) {
-                toastOnUi("导出成功, 文件名为 $exportFileName")
-            } else {
-                longToast("导出成功\n${result.warnings.joinToString("\n")}")
+        }.onSuccess {
+            preparingPresetExport = false
+            if (!isAdded) {
+                packageFile.delete()
+                return@onSuccess
             }
+            pendingPresetExportName = packageFile.name
+            selectExportDocument.launch(exportFileName)
         }.onError {
+            preparingPresetExport = false
             it.printOnDebug()
             AppLog.put("导出失败:${it.localizedMessage}", it)
             longToast("导出失败:${it.localizedMessage}")
@@ -1310,21 +1356,55 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         }
     }
 
-    private fun exportHighlightRules(uri: Uri, rules: List<ReadHighlightRule>) {
-        if (rules.isEmpty()) return
+    private fun prepareHighlightExport(rules: List<ReadHighlightRule>) {
+        if (preparingHighlightExport || pendingHighlightExportName != null) {
+            toastOnUi("已有高亮规则导出任务，请稍候")
+            return
+        }
+        preparingHighlightExport = true
+        val packageFile = File(requireContext().filesDir, ".pending-highlight-export-${UUID.randomUUID()}.zip")
         execute {
-            uri.outputStream(requireContext()).getOrThrow().use { output ->
-                ReadHighlightRulePackageManager.export(rules, output)
+            try {
+                packageFile.outputStream().use { output ->
+                    ReadHighlightRulePackageManager.export(rules, output)
+                }
+            } catch (error: Throwable) {
+                packageFile.delete()
+                throw error
             }
-        }.onSuccess { result ->
-            if (result.warnings.isEmpty()) {
-                toastOnUi("高亮规则导出成功")
-            } else {
-                longToast("高亮规则导出成功\n${result.warnings.joinToString("\n")}")
+        }.onSuccess {
+            preparingHighlightExport = false
+            if (!isAdded) {
+                packageFile.delete()
+                return@onSuccess
             }
+            pendingHighlightExportName = packageFile.name
+            selectHighlightExportDocument.launch("highlightRules.zip")
         }.onError {
+            preparingHighlightExport = false
             it.printOnDebug()
             longToast("高亮规则导出失败:${it.localizedMessage}")
+        }
+    }
+
+    private fun exportPreparedPackage(uri: Uri, packageName: String?, label: String) {
+        val filesDir = requireContext().filesDir
+        execute {
+            require(!packageName.isNullOrBlank()) { "待导出的规则包已丢失，请重新选择规则导出" }
+            val packageFile = File(filesDir, packageName)
+            require(packageFile.isFile && packageFile.length() > 0) { "待导出的规则包已丢失，请重新导出" }
+            try {
+                uri.outputStream(requireContext()).getOrThrow().use { output ->
+                    packageFile.inputStream().use { it.copyTo(output) }
+                }
+            } finally {
+                packageFile.delete()
+            }
+        }.onSuccess {
+            toastOnUi("${label}导出成功")
+        }.onError {
+            it.printOnDebug()
+            longToast("${label}导出失败:${it.localizedMessage}")
         }
     }
 

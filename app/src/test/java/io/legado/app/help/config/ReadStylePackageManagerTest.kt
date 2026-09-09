@@ -1,6 +1,10 @@
 package io.legado.app.help.config
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
+import com.google.gson.JsonObject
+import com.google.gson.JsonArray
+import io.legado.app.constant.PreferKey
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -15,6 +19,54 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 class ReadStylePackageManagerTest {
+    @Test
+    fun `bundles builtin background all four fonts and reader preferences`() {
+        val image = byteArrayOf(1, 2, 3)
+        val resources = mapOf(
+            "assets://bg/test.png" to image,
+            "assets://body.ttf" to byteArrayOf(4, 5),
+            "assets://title.ttf" to byteArrayOf(6, 7),
+            "assets://header.ttf" to byteArrayOf(8, 9),
+            "assets://footer.ttf" to byteArrayOf(10, 11),
+        )
+        val config = ReadBookConfig.Config(
+            bgType = 1, bgStr = "test.png", bgTypeNight = 1, bgStrNight = "test.png",
+            textFont = "assets://body.ttf", titleFont = "assets://title.ttf",
+            headerFont = "assets://header.ttf", footerFont = "assets://footer.ttf",
+            highlightRules = arrayListOf(ReadHighlightRule(id = "test", pattern = "a",
+                bgImage = "assets://bg/test.png", fontPath = "assets://body.ttf", npLeft = 0.2f)),
+        )
+        val settings = JsonObject().apply {
+            addProperty(PreferKey.textFullJustify, false)
+            add("toolbarOrder", JsonArray().apply { add("copy") })
+            add("toolbarDisabled", JsonArray().apply { add("share") })
+        }
+        val output = ByteArrayOutputStream()
+        ReadStylePackageManager.export(config, output, File(temporaryFolder.root, "stage"),
+            { resources[it]?.inputStream() }, settings)
+        val entries = unzip(output.toByteArray())
+        assertEquals(6, entries.size)
+        val imported = ReadStylePackageManager.import(output.toByteArray().inputStream(), "all-fonts", temporaryFolder.newFolder())
+        assertEquals(settings, imported.readerSettings)
+        assertEquals(2, imported.config.bgType)
+        assertEquals(imported.config.bgStr, imported.config.bgStrNight)
+        assertEquals(imported.config.bgStr, imported.config.highlightRules.single().bgImage)
+        assertEquals(imported.config.textFont, imported.config.highlightRules.single().fontPath)
+        assertArrayEquals(resources.getValue("assets://header.ttf"), File(imported.config.headerFont).readBytes())
+        assertArrayEquals(resources.getValue("assets://footer.ttf"), File(imported.config.footerFont).readBytes())
+        assertEquals(0.2f, imported.config.highlightRules.single().npLeft, 0f)
+    }
+
+    @Test
+    fun `rejects malformed reader preference before installation`() {
+        val json = """{"ngReaderSettings":{"screenOrientation":"invalid"}}"""
+        val parent = temporaryFolder.newFolder()
+        val result = runCatching {
+            ReadStylePackageManager.import(zipOf("readConfig.json" to json.toByteArray()).inputStream(), "invalid", parent)
+        }
+        assertTrue(result.isFailure)
+        assertFalse(File(parent, "invalid").exists())
+    }
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()

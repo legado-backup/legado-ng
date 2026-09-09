@@ -27,7 +27,7 @@ internal object ReadHighlightRulePackageManager {
     private const val MAX_ENTRY_COUNT = 256
     private const val MAX_ENTRY_BYTES = 64L * 1024 * 1024
     private const val MAX_TOTAL_BYTES = 128L * 1024 * 1024
-    private const val MAX_CONFIG_BYTES = 2L * 1024 * 1024
+    private const val MAX_CONFIG_BYTES = 5L * 1024 * 1024
 
     data class ImportResult(
         val rules: List<ReadHighlightRule>,
@@ -58,47 +58,54 @@ internal object ReadHighlightRulePackageManager {
     fun export(
         rules: List<ReadHighlightRule>,
         output: OutputStream,
+        stagingParent: File = appCtx.cacheDir,
+        resourceOpener: (String) -> InputStream? = ::openResource,
     ): ExportResult {
-        val stagingRoot = File(appCtx.cacheDir, ".highlight-rule-export-${UUID.randomUUID()}")
+        val stagingRoot = File(stagingParent, ".highlight-rule-export-${UUID.randomUUID()}")
         val warnings = mutableListOf<String>()
         val exportedFiles = arrayListOf<File>()
         var totalBytes = 0L
         stagingRoot.deleteRecursively()
         stagingRoot.mkdirs()
         try {
+            val referenceNames = mutableMapOf<String, String>()
+            val contentNames = mutableMapOf<String, String>()
             fun copyResource(reference: String?, prefix: String, label: String): String? {
                 val source = reference?.trim()?.takeIf(String::isNotEmpty) ?: return null
-                if (source.startsWith("assets://")) return source
+                referenceNames[source]?.let { return it }
                 val target = File(stagingRoot, "${prefix}_${resourceName(source).safeFileName()}")
-                val copied = runCatching {
-                    openResource(source)?.use { input ->
-                        FileOutputStream(target).use { fileOutput ->
-                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                            var entryBytes = 0L
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                entryBytes += read
-                                totalBytes += read
-                                require(entryBytes <= MAX_ENTRY_BYTES) { "$label 文件过大" }
-                                require(totalBytes <= MAX_TOTAL_BYTES) { "高亮规则资源总体积过大" }
-                                fileOutput.write(buffer, 0, read)
-                            }
+                val digest = MessageDigest.getInstance("SHA-256")
+                var entryBytes = 0L
+                val input = resourceOpener(source) ?: error("$label 无法读取，导出已取消")
+                input.use {
+                    FileOutputStream(target).use { fileOutput ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val read = it.read(buffer)
+                            if (read < 0) break
+                            entryBytes += read
+                            require(entryBytes <= MAX_ENTRY_BYTES) { "$label 文件过大" }
+                            digest.update(buffer, 0, read)
+                            fileOutput.write(buffer, 0, read)
                         }
-                    } != null
-                }.getOrElse {
-                    target.delete()
-                    throw it
+                    }
                 }
-                if (!copied || !target.isFile) {
+                require(entryBytes > 0) { "$label 是空文件，导出已取消" }
+                val hash = digest.digest().joinToString("") { "%02x".format(it) }
+                val existing = contentNames[hash]
+                if (existing != null) {
                     target.delete()
-                    warnings += "$label 无法读取，未写入高亮规则包"
-                    return null
+                    referenceNames[source] = existing
+                    return existing
                 }
+                require(exportedFiles.size + 2 <= MAX_ENTRY_COUNT) { "高亮规则资源数量过多" }
+                totalBytes += entryBytes
+                require(totalBytes <= MAX_TOTAL_BYTES) { "高亮规则资源总体积过大" }
                 exportedFiles += target
+                referenceNames[source] = target.name
+                contentNames[hash] = target.name
                 return target.name
             }
-
             val portableRules = rules.mapIndexed { index, source ->
                 source.normalized().copy(
                     bgImage = copyResource(
@@ -115,6 +122,8 @@ internal object ReadHighlightRulePackageManager {
             }
             val configFile = File(stagingRoot, ReadHighlightRuleStore.fileName)
             configFile.writeText(GSON.toJson(portableRules))
+            require(configFile.length() <= MAX_CONFIG_BYTES) { "高亮规则配置超过5MB，导出已取消" }
+            require(totalBytes + configFile.length() <= MAX_TOTAL_BYTES) { "高亮规则包总体积过大" }
             exportedFiles += configFile
 
             ZipOutputStream(output).use { zip ->
@@ -130,8 +139,11 @@ internal object ReadHighlightRulePackageManager {
         }
     }
 
-    private fun importZip(bytes: ByteArray): ImportResult {
-        val packageParent = File(appCtx.filesDir, PACKAGE_DIR).apply { mkdirs() }
+    internal fun importZip(
+        bytes: ByteArray,
+        packageParent: File = File(appCtx.filesDir, PACKAGE_DIR),
+    ): ImportResult {
+        packageParent.mkdirs()
         val stagingRoot = File(packageParent, ".staging-${UUID.randomUUID()}")
         val installedRoot = File(packageParent, bytes.sha256())
         val warnings = mutableListOf<String>()
@@ -209,13 +221,12 @@ internal object ReadHighlightRulePackageManager {
                 ?: entries.singleOrNull { File(it).name == File(candidate).name }
         }
         if (entry == null) {
-            warnings += "$label 未随高亮规则包携带，已忽略"
-            return null
+            error("$label 未随高亮规则包携带，导入已取消")
         }
         val file = File(installedRoot, entry).canonicalFile
-        return file.takeIf {
+        return requireNotNull(file.takeIf {
             it.isFile && it.toPath().startsWith(installedRoot.canonicalFile.toPath())
-        }?.absolutePath
+        }) { "$label 无法读取，导入已取消" }.absolutePath
     }
 
     private fun resolveExistingReference(
@@ -291,6 +302,9 @@ internal object ReadHighlightRulePackageManager {
     }
 
     private fun openResource(reference: String): InputStream? {
+        if (reference.startsWith("assets://")) {
+            return appCtx.assets.open(reference.removePrefix("assets://"))
+        }
         val uri = Uri.parse(reference)
         return when (uri.scheme?.lowercase(Locale.ROOT)) {
             "content" -> appCtx.contentResolver.openInputStream(uri)

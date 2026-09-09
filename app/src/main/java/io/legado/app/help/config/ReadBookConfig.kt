@@ -697,7 +697,7 @@ object ReadBookConfig {
         }
 
     fun getExportConfig(): Config {
-        val exportConfig = durConfig.copy(highlightRules = arrayListOf())
+        val exportConfig = durConfig.copy(highlightRules = ArrayList(ReadHighlightRuleStore.allRules()))
         if (shareLayout) {
             exportConfig.textFont = shareConfig.textFont
             exportConfig.titleFont = shareConfig.titleFont
@@ -771,7 +771,7 @@ object ReadBookConfig {
     }
 
     internal fun exportWithReport(output: OutputStream): ReadStylePackageManager.ExportResult {
-        return ReadStylePackageManager.export(getExportConfig(), output)
+        return ReadStylePackageManager.export(getExportConfig(), output, ReadPresetPreferences.capture())
     }
 
     internal data class AppendImportedConfigResult(
@@ -786,7 +786,7 @@ object ReadBookConfig {
         val importedRules = config.highlightRules.toList()
         config.highlightRules.clear()
         val ruleMerge = importedRules.takeIf { it.isNotEmpty() }?.let {
-            ReadHighlightRuleStore.merge(it, replaceMatchingIds = false)
+            ReadHighlightRuleStore.merge(it, replaceMatchingIds = true)
         }
         configList.add(config)
         val index = configList.lastIndex

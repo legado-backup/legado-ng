@@ -3,6 +3,7 @@ package io.legado.app.help.config
 import android.net.Uri
 import com.google.gson.JsonObject
 import io.legado.app.utils.GSON
+import io.legado.app.utils.externalFiles
 import splitties.init.appCtx
 import java.io.BufferedInputStream
 import java.io.File
@@ -25,13 +26,14 @@ internal object ReadStylePackageManager {
     private const val MAX_ENTRY_COUNT = 512
     private const val MAX_ENTRY_BYTES = 64L * 1024 * 1024
     private const val MAX_TOTAL_BYTES = 256L * 1024 * 1024
-    private const val MAX_CONFIG_BYTES = 2L * 1024 * 1024
+    private const val MAX_CONFIG_BYTES = 5L * 1024 * 1024
 
     data class ImportResult(
         val config: ReadBookConfig.Config,
         val sourceFormat: String,
         val warnings: List<String>,
         val installedRoot: File,
+        val readerSettings: JsonObject? = null,
     )
 
     data class ExportResult(
@@ -44,9 +46,9 @@ internal object ReadStylePackageManager {
         packageParent = File(appCtx.filesDir, PACKAGE_DIR),
     )
 
-    fun export(config: ReadBookConfig.Config, output: OutputStream): ExportResult {
+    fun export(config: ReadBookConfig.Config, output: OutputStream, readerSettings: JsonObject? = null): ExportResult {
         val stagingRoot = File(appCtx.cacheDir, ".read-style-export-${UUID.randomUUID()}")
-        return export(config, output, stagingRoot, ::openResource)
+        return export(config, output, stagingRoot, ::openResource, readerSettings)
     }
 
     internal fun export(
@@ -54,6 +56,7 @@ internal object ReadStylePackageManager {
         output: OutputStream,
         stagingRoot: File,
         openResource: (String) -> InputStream?,
+        readerSettings: JsonObject? = null,
     ): ExportResult {
         val warnings = mutableListOf<String>()
         val exportedFiles = arrayListOf<File>()
@@ -65,79 +68,71 @@ internal object ReadStylePackageManager {
                 highlightRules = ArrayList(config.highlightRules.map { it.copy() })
             )
 
+            val referenceNames = mutableMapOf<String, String>()
+            val contentNames = mutableMapOf<String, String>()
             fun copyResource(reference: String?, prefix: String, label: String): String? {
                 val source = reference?.trim()?.takeIf(String::isNotEmpty) ?: return null
-                if (source.startsWith("assets://")) return source
-                val sourceName = resourceName(source)
-                val target = File(stagingRoot, "${prefix}_${sourceName.safeFileName()}")
-                val copied = runCatching {
-                    openResource(source)?.use { input ->
-                        FileOutputStream(target).use { fileOutput ->
-                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                            var entryBytes = 0L
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                entryBytes += read
-                                totalBytes += read
-                                require(entryBytes <= MAX_ENTRY_BYTES) { "$label 文件过大" }
-                                require(totalBytes <= MAX_TOTAL_BYTES) { "排版包资源总体积过大" }
-                                fileOutput.write(buffer, 0, read)
-                            }
+                referenceNames[source]?.let { return it }
+                val target = File(stagingRoot, "${prefix}_${resourceName(source).safeFileName()}")
+                val digest = MessageDigest.getInstance("SHA-256")
+                var entryBytes = 0L
+                val input = openResource(source) ?: error("$label 无法读取，导出已取消")
+                input.use {
+                    FileOutputStream(target).use { fileOutput ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val read = it.read(buffer)
+                            if (read < 0) break
+                            entryBytes += read
+                            require(entryBytes <= MAX_ENTRY_BYTES) { "$label 文件过大" }
+                            digest.update(buffer, 0, read)
+                            fileOutput.write(buffer, 0, read)
                         }
-                    } != null
-                }.getOrElse {
-                    target.delete()
-                    throw it
+                    }
                 }
-                if (!copied || !target.isFile) {
+                require(entryBytes > 0) { "$label 是空文件，导出已取消" }
+                val hash = digest.digest().joinToString("") { "%02x".format(it) }
+                val existing = contentNames[hash]
+                if (existing != null) {
                     target.delete()
-                    warnings += "$label 无法读取，未写入排版包"
-                    return null
+                    referenceNames[source] = existing
+                    return existing
                 }
+                require(exportedFiles.size + 2 <= MAX_ENTRY_COUNT) { "排版包资源数量过多" }
+                totalBytes += entryBytes
+                require(totalBytes <= MAX_TOTAL_BYTES) { "排版包资源总体积过大" }
                 exportedFiles += target
+                referenceNames[source] = target.name
+                contentNames[hash] = target.name
                 return target.name
             }
-
             fun exportBackground(index: Int, label: String) {
                 val type = when (index) {
                     0 -> portableConfig.bgType
                     1 -> portableConfig.bgTypeNight
                     else -> portableConfig.bgTypeEInk
                 }
-                if (type != 2) return
+                if (type != 1 && type != 2) return
                 val reference = when (index) {
                     0 -> portableConfig.bgStr
                     1 -> portableConfig.bgStrNight
                     else -> portableConfig.bgStrEInk
                 }
-                val bundled = copyResource(reference, "read_background_$index", label)
-                if (bundled != null) {
-                    when (index) {
-                        0 -> portableConfig.bgStr = bundled
-                        1 -> portableConfig.bgStrNight = bundled
-                        else -> portableConfig.bgStrEInk = bundled
-                    }
-                } else {
-                    when (index) {
-                        0 -> {
-                            portableConfig.bgType = 0
-                            portableConfig.bgStr = "#FFFFFF"
-                        }
-
-                        1 -> {
-                            portableConfig.bgTypeNight = 0
-                            portableConfig.bgStrNight = "#000000"
-                        }
-
-                        else -> {
-                            portableConfig.bgTypeEInk = 0
-                            portableConfig.bgStrEInk = "#FFFFFF"
-                        }
-                    }
+                val portableReference = when {
+                    type == 1 -> "assets://bg/${resolveBundledReadBackgroundName(reference)}"
+                    !reference.contains('/') && !reference.contains('\\') && ':' !in reference ->
+                        File(File(appCtx.externalFiles, "bg"), reference).absolutePath
+                    else -> reference
+                }
+                val bundled = requireNotNull(copyResource(portableReference, "read_background_$index", label)) {
+                    "$label 未设置图片，导出已取消"
+                }
+                when (index) {
+                    0 -> { portableConfig.bgStr = bundled; portableConfig.bgType = 2 }
+                    1 -> { portableConfig.bgStrNight = bundled; portableConfig.bgTypeNight = 2 }
+                    else -> { portableConfig.bgStrEInk = bundled; portableConfig.bgTypeEInk = 2 }
                 }
             }
-
             exportBackground(0, "日间阅读背景")
             exportBackground(1, "夜间阅读背景")
             exportBackground(2, "墨水屏阅读背景")
@@ -151,6 +146,8 @@ internal object ReadStylePackageManager {
                 "read_font_title",
                 "标题字体",
             ).orEmpty()
+            portableConfig.headerFont = copyResource(portableConfig.headerFont, "read_font_header", "页眉字体").orEmpty()
+            portableConfig.footerFont = copyResource(portableConfig.footerFont, "read_font_footer", "页脚字体").orEmpty()
             portableConfig.highlightRules = ArrayList(
                 portableConfig.highlightRules.mapIndexed { index, rule ->
                     rule.copy(
@@ -171,9 +168,13 @@ internal object ReadStylePackageManager {
             val configJson = GSON.toJsonTree(portableConfig).asJsonObject.apply {
                 remove("ngReadStyleSource")
                 remove("ngUnknownFields")
+                addProperty("ngResourcePackageVersion", 1)
+                readerSettings?.let { add("ngReaderSettings", it.deepCopy()) }
             }
             val configFile = File(stagingRoot, CONFIG_NAME)
             configFile.writeText(GSON.toJson(configJson))
+            require(configFile.length() <= MAX_CONFIG_BYTES) { "阅读预设配置超过5MB，导出已取消" }
+            require(totalBytes + configFile.length() <= MAX_TOTAL_BYTES) { "阅读预设包总体积过大" }
             exportedFiles += configFile
 
             ZipOutputStream(output).use { zip ->
@@ -206,6 +207,10 @@ internal object ReadStylePackageManager {
             require(configFile.length() <= MAX_CONFIG_BYTES) { "排版配置文件过大" }
             val root = GSON.fromJson(configFile.readText(), JsonObject::class.java)
                 ?: error("排版配置为空")
+            val readerSettings = root.get("ngReaderSettings")?.let {
+                require(it.isJsonObject) { "阅读设置格式错误" }
+                it.asJsonObject.also(ReadPresetPreferences::validate)
+            }
             val sourceFormat = detectSourceFormat(root)
             val config = GSON.fromJson(root, ReadBookConfig.Config::class.java)
                 ?: error("无法解析排版配置")
@@ -220,9 +225,11 @@ internal object ReadStylePackageManager {
                 require(stagingRoot.renameTo(installedRoot)) { "无法安装排版包资源" }
                 installedByThisImport = true
             }
-            normalizeResources(config, entries, installedRoot, warnings)
+            normalizeResources(config, entries, installedRoot, warnings,
+                strict = root.intOrNull("ngResourcePackageVersion") == 1)
             normalizeValues(config, root, sourceFormat, warnings)
-            return ImportResult(config, sourceFormat, warnings.distinct(), installedRoot)
+            return ImportResult(config, sourceFormat, warnings.distinct(), installedRoot,
+                readerSettings)
         } catch (error: Throwable) {
             stagingRoot.deleteRecursively()
             if (installedByThisImport) installedRoot.deleteRecursively()
@@ -301,6 +308,7 @@ internal object ReadStylePackageManager {
         entries: Set<String>,
         installedRoot: File,
         warnings: MutableList<String>,
+        strict: Boolean,
     ) {
         fun resolve(reference: String?, label: String): String? {
             val value = reference?.trim()?.takeIf(String::isNotEmpty) ?: return null
@@ -330,6 +338,7 @@ internal object ReadStylePackageManager {
                     ?: entries.singleOrNull { File(it).name == File(candidate).name }
             }
             if (entry == null) {
+                if (strict) error("$label 未随排版包携带，导入已取消")
                 warnings += "$label 未随排版包携带，已忽略"
                 return null
             }
@@ -471,6 +480,7 @@ internal object ReadStylePackageManager {
         .joinToString("") { "%02x".format(it) }
 
     private fun openResource(reference: String): InputStream? {
+        if (reference.startsWith("assets://")) return appCtx.assets.open(reference.removePrefix("assets://"))
         val uri = Uri.parse(reference)
         return when (uri.scheme?.lowercase(Locale.ROOT)) {
             "content" -> appCtx.contentResolver.openInputStream(uri)
@@ -516,6 +526,6 @@ internal object ReadStylePackageManager {
         "paperEffect", "paperInkStrength", "readScrollFollowBackground",
         "readScrollFollowBackgroundNight", "readScrollFollowBackgroundEInk",
         "underlineDashLength", "underlineStrokeWidth",
-        "ngReadStyleSource", "ngUnknownFields",
+        "ngReadStyleSource", "ngUnknownFields", "ngReaderSettings", "ngResourcePackageVersion",
     )
 }
