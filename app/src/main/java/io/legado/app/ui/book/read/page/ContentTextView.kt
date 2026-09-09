@@ -19,6 +19,7 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.association.OpenUrlConfirmActivity
+import io.legado.app.ui.book.read.ReadDrawerStyle
 import io.legado.app.ui.book.read.page.delegate.PageDelegate
 import io.legado.app.ui.book.read.page.entities.TextLine
 import io.legado.app.ui.book.read.page.entities.TextPage
@@ -36,7 +37,6 @@ import io.legado.app.ui.widget.dialog.PhotoDialog
 import io.legado.app.utils.ColorUtils
 import io.legado.app.utils.activity
 import io.legado.app.utils.dpToPx
-import io.legado.app.utils.getCompatColor
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.toastOnUi
@@ -51,15 +51,33 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     var selectAble = AppConfig.textSelectAble
     val selectedPaint by lazy {
         Paint().apply {
-            // 选区仍需可辨，但不能遮住正在预览的正文划线颜色。
+            // 普通选字使用弱化的强调色，进入划线后由会话状态清空。
             color = ColorUtils.withAlpha(
-                context.getCompatColor(R.color.btn_bg_press_2),
+                ReadDrawerStyle.indicatorColor(context),
                 SELECTION_OVERLAY_ALPHA,
             )
             style = Paint.Style.FILL
         }
     }
     private var callBack: CallBack
+    private var selectionHighlightTransparent = false
+
+    fun setSelectionHighlightTransparent(transparent: Boolean) {
+        val color = if (transparent) android.graphics.Color.TRANSPARENT
+        else ColorUtils.withAlpha(ReadDrawerStyle.indicatorColor(context), SELECTION_OVERLAY_ALPHA)
+        if (selectionHighlightTransparent == transparent && selectedPaint.color == color) return
+        selectionHighlightTransparent = transparent
+        selectedPaint.color = color
+        // 选区底色参与行缓存；仅使含选中文字的行失效。
+        pageFactory.run {
+            listOf(prevPage, curPage, nextPage, nextPlusPage).forEach { page ->
+                page.lines.forEach { line ->
+                    if (line.columns.any { it is TextBaseColumn && it.selected }) line.invalidate()
+                }
+            }
+        }
+        invalidate()
+    }
     private val visibleRect = ChapterProvider.visibleRect
     val selectStart = TextPos(0, -1, -1)
     private val selectEnd = TextPos(0, -1, -1)
@@ -1242,7 +1260,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                 Thread(it, "TextPageRender")
             }
         }
-        private const val SELECTION_OVERLAY_ALPHA = 0.12f
+        private const val SELECTION_OVERLAY_ALPHA = 0.20f
         private const val NOTE_MARKER_SIZE_DP = 12
         private const val NOTE_MARKER_GAP_DP = 2
         private const val NOTE_MARKER_TRAILING_GAP_DP = 2

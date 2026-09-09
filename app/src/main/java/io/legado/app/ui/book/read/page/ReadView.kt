@@ -274,6 +274,12 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
     }
 
+    fun setSelectionHighlightTransparent(transparent: Boolean) {
+        curPage.setSelectionHighlightTransparent(transparent)
+        prevPage.setSelectionHighlightTransparent(transparent)
+        nextPage.setSelectionHighlightTransparent(transparent)
+    }
+
     /**
      * 更新状态栏
      */

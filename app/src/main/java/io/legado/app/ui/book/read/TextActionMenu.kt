@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
@@ -17,6 +18,7 @@ import android.view.Gravity
 import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.widget.PopupWindow
 import androidx.activity.ComponentActivity
@@ -110,6 +112,41 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
     private var popupAnchorBottomY = 0
     private var popupCenteredSafeLeft = 0
     private var popupCenteredSafeRight = 0
+    private var fullSafeBottom = 0
+    private var measuredToolbarHeight = 0
+    private var layoutUpdatePending = false
+    private val visibleFrame = Rect()
+    private val windowLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+        if (isShowing) {
+            val oldBottom = menuSafeBottom
+            refreshVisibleBounds()
+            if (oldBottom != menuSafeBottom) scheduleToolbarLayout()
+        }
+    }
+
+    private fun scheduleToolbarLayout() {
+        if (layoutUpdatePending) return
+        layoutUpdatePending = true
+        contentView.post {
+            layoutUpdatePending = false
+            if (isShowing && textHighlightPopupModeState.value == TextHighlightPopupMode.TOOLBAR) {
+                updateToolbarEditorHeight(useMeasuredHeight = true)
+            }
+        }
+    }
+
+    private fun refreshVisibleBounds() {
+        val parent = popupParentView ?: return
+        contentView.getWindowVisibleDisplayFrame(visibleFrame)
+        val screen = IntArray(2)
+        val window = IntArray(2)
+        parent.getLocationOnScreen(screen)
+        parent.getLocationInWindow(window)
+        menuSafeBottom = if (visibleFrame.bottom > visibleFrame.top) {
+            min(fullSafeBottom, visibleFrame.bottom - (screen[1] - window[1]) - 8.dpToPx())
+                .coerceAtLeast(menuSafeTop + 1)
+        } else fullSafeBottom
+    }
     private val actions: List<TextSelectionAction> by lazy {
         menuItems.map { item ->
             TextSelectionAction(
@@ -180,6 +217,12 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
                             dragEnabled = !noteEditorVisibleState.value,
                             onDragStart = ::startToolbarDrag,
                             onDrag = ::dragToolbarBy,
+                            onContentHeightChanged = { measuredHeight ->
+                                if (measuredToolbarHeight != measuredHeight) {
+                                    measuredToolbarHeight = measuredHeight
+                                    scheduleToolbarLayout()
+                                }
+                            },
                         )
                     }
                 }
@@ -193,6 +236,8 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
         inputMethodMode = PopupWindow.INPUT_METHOD_NEEDED
         softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         setOnDismissListener {
+            contentView.viewTreeObserver.removeOnGlobalLayoutListener(windowLayoutListener)
+            popupParentView?.viewTreeObserver?.removeOnGlobalLayoutListener(windowLayoutListener)
             commitTextHighlightNote()
             dismissMoreMenu()
             currentPageState.intValue = 0
@@ -257,6 +302,7 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
         currentPageState.intValue = 0
         dismissMoreMenu()
         popupParentView = view
+        measuredToolbarHeight = 0
         textHighlightState.value = textHighlight
         textHighlightPopupModeState.value = initialTextHighlightPopupMode(textHighlight)
         noteEditorVisibleState.value = false
@@ -325,12 +371,7 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
             windowHeight - bottomInset - verticalMargin - popupHeight
         ).coerceAtLeast(minTop)
         val above = startTopY - popupHeight - gap
-        val selectionSpan = (endBottomY - startBottomY).coerceAtLeast(0)
-        val below = if (selectionSpan > popupHeight * 2) {
-            startBottomY + gap
-        } else {
-            max(startBottomY, endBottomY) + gap
-        }
+        val below = max(startBottomY, endBottomY) + gap
         val popupY = when {
             above >= minTop -> above
             below <= maxTop -> below
@@ -355,6 +396,7 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
         menuSafeTop = topInset + TEXT_SELECTION_MORE_PANEL_SCREEN_MARGIN_DP.dpToPx()
         menuSafeBottom = windowHeight - bottomInset -
             TEXT_SELECTION_MORE_PANEL_SCREEN_MARGIN_DP.dpToPx()
+        fullSafeBottom = menuSafeBottom
         toolbarDragX = toolbarX.toFloat()
         toolbarDragY = toolbarY.toFloat()
 
@@ -370,6 +412,10 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
             popupView.attachViewTreeOwners()
             popupView = popupView.parent as? View
         }
+        contentView.viewTreeObserver.addOnGlobalLayoutListener(windowLayoutListener)
+        view.viewTreeObserver.removeOnGlobalLayoutListener(windowLayoutListener)
+        view.viewTreeObserver.addOnGlobalLayoutListener(windowLayoutListener)
+        scheduleToolbarLayout()
     }
 
     private fun View.attachViewTreeOwners() {
@@ -514,8 +560,8 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
         val above = popupAnchorTopY - popupHeight - gap
         val below = popupAnchorBottomY + gap
         return when {
-            above >= minTop -> above
-            below <= maxTop -> below
+            above >= minTop -> above.coerceAtMost(maxTop)
+            below <= maxTop -> below.coerceAtLeast(minTop)
             else -> above.coerceIn(minTop, maxTop)
         }
     }
@@ -584,18 +630,28 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
         )
     }
 
-    private fun updateToolbarEditorHeight() {
+    private fun updateToolbarEditorHeight(useMeasuredHeight: Boolean = false) {
         if (!isShowing) return
-        val desiredHeight = textSelectionToolbarHeightDp(
+        refreshVisibleBounds()
+        if (!useMeasuredHeight) measuredToolbarHeight = 0
+        val desiredHeight = measuredToolbarHeight.takeIf { it > 0 } ?: textSelectionToolbarHeightDp(
             showHighlightEditor = textHighlightState.value != null,
             showNoteEditor = noteEditorVisibleState.value,
         ).dpToPx()
         val safeHeight = (menuSafeBottom - menuSafeTop).coerceAtLeast(1)
-        val expandedHeight = desiredHeight.coerceAtMost(safeHeight)
-        val expandedY = when {
-            toolbarY + expandedHeight <= menuSafeBottom -> toolbarY
-            else -> (toolbarY + toolbarHeight - expandedHeight)
-                .coerceAtLeast(menuSafeTop)
+        val gap = 8.dpToPx()
+        val aboveSpace = (popupAnchorTopY - gap - menuSafeTop).coerceIn(0, safeHeight)
+        val belowSpace = (menuSafeBottom - popupAnchorBottomY - gap).coerceIn(0, safeHeight)
+        // 两侧都不足时选择较大的一侧，内容在受限窗口内滚动。
+        // 选区占满可视区域时无法完全避让，退回可视范围并保留手动拖动。
+        val availableSpace = max(aboveSpace, belowSpace)
+            .takeIf { it >= min(desiredHeight, TEXT_SELECTION_TOOLBAR_HEIGHT_DP.dpToPx()) }
+            ?: safeHeight
+        val expandedHeight = desiredHeight.coerceAtMost(availableSpace)
+        val expandedY = anchoredPopupY(expandedHeight)
+        if (toolbarHeight == expandedHeight && toolbarY == expandedY) {
+            update() // 同步备注输入的 focusable / IME 标记。
+            return
         }
         toolbarY = expandedY
         toolbarHeight = expandedHeight

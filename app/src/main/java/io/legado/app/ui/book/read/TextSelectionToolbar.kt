@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -204,6 +205,7 @@ internal fun TextSelectionToolbar(
     dragEnabled: Boolean = true,
     onDragStart: () -> Unit = {},
     onDrag: (deltaX: Float, deltaY: Float) -> Unit = { _, _ -> },
+    onContentHeightChanged: (Int) -> Unit = {},
 ) {
     val pages = buildList {
         add(primaryActions.take(TEXT_SELECTION_FIRST_PAGE_ACTION_COUNT))
@@ -217,7 +219,8 @@ internal fun TextSelectionToolbar(
     val currentOnDrag by rememberUpdatedState(onDrag)
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val dragModifier = if (dragEnabled) {
+    val toolbarScrollState = rememberScrollState()
+    val dragModifier = if (dragEnabled && toolbarScrollState.maxValue == 0) {
         Modifier.pointerInput(Unit) {
             detectDragGestures(
                 onDragStart = { currentOnDragStart() },
@@ -233,7 +236,9 @@ internal fun TextSelectionToolbar(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
+            .verticalScroll(toolbarScrollState)
+            .onSizeChanged { onContentHeightChanged(it.height) }
             .then(dragModifier),
     ) {
         TextSelectionSubtleGlassSurface(

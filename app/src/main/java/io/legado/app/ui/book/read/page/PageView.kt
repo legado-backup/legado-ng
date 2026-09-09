@@ -387,6 +387,10 @@ class PageView(context: Context) : FrameLayout(context) {
         binding.contentTextView.invalidate()
     }
 
+    fun setSelectionHighlightTransparent(transparent: Boolean) {
+        binding.contentTextView.setSelectionHighlightTransparent(transparent)
+    }
+
     /**
      * 设置无障碍文本
      */

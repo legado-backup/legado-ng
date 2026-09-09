@@ -61,7 +61,6 @@ import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.source.getSourceType
 import io.legado.app.help.storage.Backup
 import io.legado.app.lib.dialogs.SelectItem
-import io.legado.app.lib.theme.accentColor
 import io.legado.app.model.ReadAloud
 import io.legado.app.model.BookCacheManager
 import io.legado.app.model.ReadBook
@@ -285,8 +284,6 @@ class ReadBookActivity : BaseReadBookActivity(),
     @SuppressLint("ClickableViewAccessibility")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
-        binding.cursorLeft.setColorFilter(accentColor)
-        binding.cursorRight.setColorFilter(accentColor)
         binding.cursorLeft.setOnTouchListener(this)
         binding.cursorRight.setOnTouchListener(this)
         window.setBackgroundDrawable(null)
@@ -853,6 +850,13 @@ class ReadBookActivity : BaseReadBookActivity(),
      * 更新文字选择开始位置
      */
     override fun upSelectedStart(x: Float, y: Float, top: Float) = binding.run {
+        if (cursorLeft.visibility != View.VISIBLE) {
+            // 每次开始选字时，与当前阅读预设 Dock 的选中色同步。
+            val selectionColor = ReadDrawerStyle.indicatorColor(this@ReadBookActivity)
+            cursorLeft.setColorFilter(selectionColor)
+            cursorRight.setColorFilter(selectionColor)
+            readView.setSelectionHighlightTransparent(false)
+        }
         cursorLeft.x = x - cursorLeft.width
         cursorLeft.y = y
         cursorLeft.visible(true)
@@ -873,6 +877,7 @@ class ReadBookActivity : BaseReadBookActivity(),
      * 取消文字选择
      */
     override fun onCancelSelect() = binding.run {
+        readView.setSelectionHighlightTransparent(false)
         cursorLeft.invisible()
         cursorRight.invisible()
         textActionMenu.dismiss()
@@ -971,6 +976,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             return null
         }
         activeTextHighlight = textHighlight
+        binding.readView.setSelectionHighlightTransparent(true)
         lifecycleScope.launch(IO) {
             textHighlightWriteMutex.withLock {
                 appDb.bookmarkDao.insert(textHighlight)
