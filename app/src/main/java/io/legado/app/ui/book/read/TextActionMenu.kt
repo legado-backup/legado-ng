@@ -42,6 +42,8 @@ import io.legado.app.R
 import io.legado.app.constant.AppLog
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.help.config.AppConfig
+import io.legado.app.help.config.TextSelectionActionOrder
+import io.legado.app.help.config.TextSelectionBuiltInAction
 import io.legado.app.ui.design.theme.NgAppTheme
 import io.legado.app.utils.dpToPx
 import io.legado.app.utils.isAbsUrl
@@ -82,13 +84,8 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
     PopupWindow(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT) {
 
     private val menuItems: List<MenuItemImpl> = buildMenuItems()
-    private val primaryMenuItemIds = setOf(
-        R.id.menu_replace,
-        R.id.menu_ai_purify,
-        R.id.menu_copy,
-        R.id.menu_bookmark,
-        R.id.menu_search_content,
-    )
+    private val actionOrderState = mutableStateOf(TextSelectionActionOrder.load())
+    private val disabledActionKeysState = mutableStateOf(TextSelectionActionOrder.disabledKeys())
     private val currentPageState = mutableIntStateOf(0)
     private val moreMenuVisibleState = mutableStateOf(false)
     private val textHighlightState = mutableStateOf<Bookmark?>(null)
@@ -162,16 +159,29 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
             )
         }
     }
-    private val primaryActions: List<TextSelectionAction> by lazy {
-        menuItems.zip(actions)
-            .filter { (item) -> item.itemId in primaryMenuItemIds }
-            .map { (_, action) -> action }
-    }
-    private val moreActions: List<TextSelectionAction> by lazy {
-        menuItems.zip(actions)
-            .filterNot { (item) -> item.itemId in primaryMenuItemIds }
-            .map { (_, action) -> action }
-    }
+    private val orderedBuiltInActions: List<TextSelectionAction>
+        get() {
+            val builtIns = menuItems.zip(actions).take(TextSelectionBuiltInAction.entries.size)
+                .associateBy { (item) -> item.itemId }
+            return actionOrderState.value.filterNot { it.key in disabledActionKeysState.value }.mapNotNull { builtIn ->
+                builtIns[builtIn.menuId]?.let { (item, action) ->
+                    val highlight = textHighlightState.value
+                    if (item.itemId == R.id.menu_bookmark && highlight != null) {
+                        action.copy(
+                            title = context.getString(R.string.delete_highlight),
+                            iconRes = R.drawable.ic_book_info_delete,
+                            iconBitmap = null,
+                            onClick = { deleteTextHighlight(highlight) },
+                        )
+                    } else action
+                }
+            }
+        }
+    private val primaryActions: List<TextSelectionAction>
+        get() = orderedBuiltInActions.take(TEXT_SELECTION_FIRST_PAGE_ACTION_COUNT)
+    private val moreActions: List<TextSelectionAction>
+        get() = orderedBuiltInActions.drop(TEXT_SELECTION_FIRST_PAGE_ACTION_COUNT) +
+            actions.drop(TextSelectionBuiltInAction.entries.size)
 
     init {
         contentView = ComposeView(context).apply {
@@ -194,11 +204,7 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
                         )
                     } else {
                         TextSelectionToolbar(
-                            primaryActions = if (textHighlight == null) {
-                                primaryActions
-                            } else {
-                                highlightPrimaryActions(textHighlight)
-                            },
+                            primaryActions = primaryActions,
                             currentPage = currentPageState.intValue,
                             onPageChange = {
                                 currentPageState.intValue = it
@@ -298,6 +304,8 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
         anchorX: Int?,
     ) {
         ReadFloatingAppearanceState.refreshFromConfig()
+        actionOrderState.value = TextSelectionActionOrder.load()
+        disabledActionKeysState.value = TextSelectionActionOrder.disabledKeys()
         themeSnapshotState.value = ReadDrawerStyle.themeSnapshot(context)
         currentPageState.intValue = 0
         dismissMoreMenu()
@@ -432,23 +440,6 @@ class TextActionMenu(private val context: ComponentActivity, private val callBac
             onInitializeMenu(processTextMenu)
         }
         return appMenu.visibleItems + processTextMenu.visibleItems
-    }
-
-    private fun highlightPrimaryActions(highlight: Bookmark): List<TextSelectionAction> {
-        return menuItems.zip(actions)
-            .filter { (item) -> item.itemId in primaryMenuItemIds }
-            .map { (item, action) ->
-                if (item.itemId == R.id.menu_bookmark) {
-                    action.copy(
-                        title = context.getString(R.string.delete_highlight),
-                        iconRes = R.drawable.ic_book_info_delete,
-                        iconBitmap = null,
-                        onClick = { deleteTextHighlight(highlight) },
-                    )
-                } else {
-                    action
-                }
-            }
     }
 
     private fun onActionClick(item: MenuItemImpl) {

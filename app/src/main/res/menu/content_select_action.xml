@@ -28,7 +28,7 @@
 
     <item
         android:id="@+id/menu_search_content"
-        android:title="@string/search_content"
+        android:title="@string/search"
         app:showAsAction="never" />
 
     <item

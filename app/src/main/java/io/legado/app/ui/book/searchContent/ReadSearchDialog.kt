@@ -13,7 +13,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -109,6 +108,7 @@ import io.legado.app.ui.book.read.ReadFloatingAppearanceState
 import io.legado.app.ui.book.read.readFloatingGlassStyle
 import io.legado.app.ui.design.components.compose.NgGlassDefaults
 import io.legado.app.ui.design.components.compose.NgGlassSurface
+import io.legado.app.ui.design.components.compose.NgDismissibleDrawer
 import io.legado.app.ui.design.components.compose.NgPopupToggleState
 import io.legado.app.ui.design.theme.NgAppTheme
 import io.legado.app.ui.design.theme.NgTheme
@@ -269,6 +269,7 @@ class ReadSearchDialog : BottomSheetDialogFragment() {
             height = (resources.displayMetrics.heightPixels * 0.82f).toInt()
         }
         BottomSheetBehavior.from(sheet).apply {
+            // Compose统一处理整组内容的下拉，避免与章节快速定位拖动竞争。
             isDraggable = false
             isHideable = true
             skipCollapsed = true
@@ -512,125 +513,111 @@ private fun ReadSearchPanel(
     val showResultSummary = query.isNotBlank() || searching || resultCount > 0
     val settingsMenuState = remember { NgPopupToggleState() }
 
-    NgGlassSurface(
-        modifier = Modifier.fillMaxSize(),
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        style = readFloatingGlassStyle().copy(shadowElevation = 0.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding()
-                .padding(top = 8.dp),
+    NgDismissibleDrawer(onDismiss = onDismissRequest) {
+        NgGlassSurface(
+            modifier = Modifier.fillMaxSize(),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            style = readFloatingGlassStyle().copy(shadowElevation = 0.dp),
         ) {
-            SearchDragHandle(
-                mutedColor = mutedColor,
-                onDismissRequest = onDismissRequest,
-            )
-            SearchInputRow(
-                query = query,
-                loading = loadingBook,
-                contentColor = contentColor,
-                mutedColor = mutedColor,
-                accentColor = accentColor,
-                dockColor = dockColor,
-                onQueryChange = onQueryChange,
-                onSearch = onSearch,
-                settingsExpanded = settingsMenuState.expanded,
-                onSettingsAnchorClick = settingsMenuState::onAnchorClick,
-                onSettingsDismiss = settingsMenuState::onDismissRequest,
-                applyReplace = applyReplace,
-                supportRegex = supportRegex,
-                onToggleApplyReplace = onToggleApplyReplace,
-                onToggleSupportRegex = onToggleSupportRegex,
-            )
-            if (showResultSummary) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(
-                            R.string.search_result_summary,
-                            resultCount,
-                            chapterCount,
-                        ),
-                        color = mutedColor.copy(alpha = 0.86f),
-                        fontSize = 14.sp,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    if (searching) {
-                        Text(
-                            text = stringResource(R.string.stop),
-                            color = accentColor,
-                            fontSize = 14.sp,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable(onClick = onStopSearch)
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                        )
-                    }
-                }
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    color = mutedColor.copy(alpha = 0.12f),
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .navigationBarsPadding()
+                    .padding(top = 8.dp),
+            ) {
+                SearchDragHandle(
+                    mutedColor = mutedColor,
                 )
-            }
-            when {
-                loadingBook -> SearchCenteredProgress(accentColor)
-                errorMessage != null -> SearchEmptyState(errorMessage, mutedColor)
-                resultCount == 0 && searching -> SearchCenteredProgress(accentColor)
-                resultCount == 0 -> SearchEmptyState(
-                    text = if (query.isBlank()) {
-                        stringResource(R.string.search_input_hint)
-                    } else {
-                        stringResource(R.string.search_content_empty)
-                    },
-                    color = mutedColor,
-                )
-                else -> SearchResultList(
-                    resultCount = resultCount,
-                    chapterTargets = chapterTargets,
-                    resultAt = resultAt,
-                    searching = searching,
-                    selectedResultIndex = selectedResultIndex,
+                SearchInputRow(
+                    query = query,
+                    loading = loadingBook,
                     contentColor = contentColor,
                     mutedColor = mutedColor,
                     accentColor = accentColor,
-                    onResultClick = onResultClick,
+                    dockColor = dockColor,
+                    onQueryChange = onQueryChange,
+                    onSearch = onSearch,
+                    settingsExpanded = settingsMenuState.expanded,
+                    onSettingsAnchorClick = settingsMenuState::onAnchorClick,
+                    onSettingsDismiss = settingsMenuState::onDismissRequest,
+                    applyReplace = applyReplace,
+                    supportRegex = supportRegex,
+                    onToggleApplyReplace = onToggleApplyReplace,
+                    onToggleSupportRegex = onToggleSupportRegex,
                 )
+                if (showResultSummary) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.search_result_summary,
+                                resultCount,
+                                chapterCount,
+                            ),
+                            color = mutedColor.copy(alpha = 0.86f),
+                            fontSize = 14.sp,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        if (searching) {
+                            Text(
+                                text = stringResource(R.string.stop),
+                                color = accentColor,
+                                fontSize = 14.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable(onClick = onStopSearch)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        color = mutedColor.copy(alpha = 0.12f),
+                    )
+                }
+                when {
+                    loadingBook -> SearchCenteredProgress(accentColor)
+                    errorMessage != null -> SearchEmptyState(errorMessage, mutedColor)
+                    resultCount == 0 && searching -> SearchCenteredProgress(accentColor)
+                    resultCount == 0 -> SearchEmptyState(
+                        text = if (query.isBlank()) {
+                            stringResource(R.string.search_input_hint)
+                        } else {
+                            stringResource(R.string.search_content_empty)
+                        },
+                        color = mutedColor,
+                    )
+                    else -> SearchResultList(
+                        resultCount = resultCount,
+                        chapterTargets = chapterTargets,
+                        resultAt = resultAt,
+                        searching = searching,
+                        selectedResultIndex = selectedResultIndex,
+                        contentColor = contentColor,
+                        mutedColor = mutedColor,
+                        accentColor = accentColor,
+                        onResultClick = onResultClick,
+                    )
+                }
             }
         }
-    }
+}
+
 }
 
 @Composable
 private fun SearchDragHandle(
     mutedColor: Color,
-    onDismissRequest: () -> Unit,
 ) {
-    var draggedDownPx by remember { mutableStateOf(0f) }
-    val dismissThresholdPx = with(LocalDensity.current) { 48.dp.toPx() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(14.dp)
-            .pointerInput(dismissThresholdPx) {
-                detectVerticalDragGestures(
-                    onDragStart = { draggedDownPx = 0f },
-                    onVerticalDrag = { _, dragAmount ->
-                        draggedDownPx = (draggedDownPx + dragAmount).coerceAtLeast(0f)
-                    },
-                    onDragCancel = { draggedDownPx = 0f },
-                    onDragEnd = {
-                        if (draggedDownPx >= dismissThresholdPx) onDismissRequest()
-                        draggedDownPx = 0f
-                    },
-                )
-            },
+            .height(14.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
         Box(

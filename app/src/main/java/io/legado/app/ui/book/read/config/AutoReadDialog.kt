@@ -51,6 +51,7 @@ import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.book.read.ReadDrawerStyle
 import io.legado.app.ui.book.read.readFloatingGlassStyle
 import io.legado.app.ui.design.components.compose.NgGlassSurface
+import io.legado.app.ui.design.components.compose.NgDismissibleDrawer
 import io.legado.app.ui.design.components.compose.NgSlider
 import io.legado.app.ui.design.components.compose.NgSliderVariant
 import io.legado.app.ui.design.theme.NgAppTheme
@@ -135,19 +136,21 @@ class AutoReadDialog : DialogFragment() {
         (view as ComposeView).apply {
             setContent {
                 NgAppTheme(snapshot = snapshot, updateSystemBars = false) {
-                    AutoReadPanel(
-                        speed = speed,
-                        pageMode = pageMode,
-                        onSpeedChanged = { speed = it },
-                        onSpeedChangeFinished = {
-                            ReadBookConfig.autoReadSpeed = speed
-                        },
-                        onPageModeChanged = ::applyPageModeSelection,
-                        onStop = {
-                            callBack?.autoPageStop()
-                            post { dismissAllowingStateLoss() }
-                        },
-                    )
+                    NgDismissibleDrawer(onDismiss = { dismissAllowingStateLoss() }) {
+                        AutoReadPanel(
+                            speed = speed,
+                            pageMode = pageMode,
+                            onSpeedChanged = { speed = it },
+                            onSpeedChangeFinished = {
+                                ReadBookConfig.autoReadSpeed = speed
+                            },
+                            onPageModeChanged = ::applyPageModeSelection,
+                            onStop = {
+                                callBack?.autoPageStop()
+                                post { dismissAllowingStateLoss() }
+                            },
+                        )
+                    }
                 }
             }
         }

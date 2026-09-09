@@ -9,6 +9,7 @@ import android.view.ViewConfiguration
 import android.view.Window
 import android.view.WindowManager
 import androidx.activity.ComponentDialog
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -27,6 +28,7 @@ import io.legado.app.ui.book.read.ReadBookActivity
 import io.legado.app.ui.book.read.ReadDrawerStyle
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.ui.design.theme.NgAppTheme
+import io.legado.app.ui.design.components.compose.NgDismissibleDrawer
 import io.legado.app.ui.design.theme.NgThemeSnapshot
 import io.legado.app.ui.widget.dialog.applyNgWindow
 import io.legado.app.utils.canvasrecorder.CanvasRecorderFactory
@@ -43,6 +45,25 @@ class MoreConfigDialog : BaseComposeDialogFragment() {
     private var screenState by mutableStateOf<ReadMoreConfigUiState?>(null)
     private var themeSnapshot by mutableStateOf<NgThemeSnapshot?>(null)
     private var bottomDialogRegistered = false
+    private var toolbarEditorVisible by mutableStateOf(false)
+
+    private fun changeToolbarEditorVisible(visible: Boolean) {
+        toolbarEditorVisible = visible
+        updateWindowHeight()
+    }
+
+    private fun updateWindowHeight() {
+        dialog?.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            if (toolbarEditorVisible) (resources.displayMetrics.heightPixels * 0.76f).toInt()
+            else READ_MORE_CONFIG_WINDOW_HEIGHT_DP.dpToPx(),
+        )
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("toolbarEditorVisible", toolbarEditorVisible)
+    }
 
     private val readActivity: ReadBookActivity?
         get() = activity as? ReadBookActivity
@@ -57,14 +78,12 @@ class MoreConfigDialog : BaseComposeDialogFragment() {
                 dimAmount = 0.0f
                 gravity = Gravity.BOTTOM
             }
-            setLayout(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                READ_MORE_CONFIG_WINDOW_HEIGHT_DP.dpToPx(),
-            )
+            updateWindowHeight()
         }
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
+        toolbarEditorVisible = savedInstanceState?.getBoolean("toolbarEditorVisible") == true
         if (!bottomDialogRegistered) {
             readActivity?.let {
                 it.bottomDialog++
@@ -85,12 +104,17 @@ class MoreConfigDialog : BaseComposeDialogFragment() {
                         snapshot = snapshot,
                         updateSystemBars = false,
                     ) {
-                        screenState?.let { state ->
-                            ReadMoreConfigScreen(
-                                tab = selectedTab,
-                                state = state,
-                                actions = actions,
-                            )
+                        NgDismissibleDrawer(onDismiss = { dismissAllowingStateLoss() }) {
+                            BackHandler(enabled = toolbarEditorVisible) { changeToolbarEditorVisible(false) }
+                            if (toolbarEditorVisible) {
+                                TextSelectionActionOrderPage(onBack = { changeToolbarEditorVisible(false) })
+                            } else screenState?.let { state ->
+                                ReadMoreConfigScreen(
+                                    tab = selectedTab,
+                                    state = state,
+                                    actions = actions,
+                                )
+                            }
                         }
                     }
                 }
@@ -207,6 +231,7 @@ class MoreConfigDialog : BaseComposeDialogFragment() {
 
     private fun handleAction(key: String) {
         when (key) {
+            ReadMoreConfigKeys.TEXT_TOOLBAR -> changeToolbarEditorVisible(true)
             ReadMoreConfigKeys.CUSTOM_PAGE_KEY -> PageKeyDialog(requireContext()).show()
 
             ReadMoreConfigKeys.CLICK_REGIONAL_CONFIG -> {

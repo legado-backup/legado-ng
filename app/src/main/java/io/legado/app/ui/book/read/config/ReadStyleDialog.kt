@@ -37,6 +37,7 @@ import io.legado.app.ui.book.read.ReadDrawerStyle
 import io.legado.app.ui.book.read.ReadFloatingAppearanceState
 import io.legado.app.ui.book.read.aloud.ReadAloudMiniPlayer
 import io.legado.app.ui.design.theme.NgAppTheme
+import io.legado.app.ui.design.components.compose.NgDismissibleDrawer
 import io.legado.app.ui.font.FontSelectDialog
 import io.legado.app.utils.ChineseUtils
 import io.legado.app.utils.CreateDocumentContract
@@ -141,13 +142,15 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
                         ),
                         updateSystemBars = false,
                     ) {
-                        ReadStyleScreen(
-                            page = page,
-                            state = state,
-                            contentColor = Color(ReadDrawerStyle.contentColor(requireContext())),
-                            accentColor = Color(ReadDrawerStyle.accentColor(requireContext())),
-                            actions = createActions(),
-                        )
+                        NgDismissibleDrawer(onDismiss = { dismissAllowingStateLoss() }) {
+                            ReadStyleScreen(
+                                page = page,
+                                state = state,
+                                contentColor = Color(ReadDrawerStyle.contentColor(requireContext())),
+                                accentColor = Color(ReadDrawerStyle.accentColor(requireContext())),
+                                actions = createActions(),
+                            )
+                        }
                     }
                 }
             }

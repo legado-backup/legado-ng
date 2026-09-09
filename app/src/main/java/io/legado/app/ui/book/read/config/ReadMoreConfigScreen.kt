@@ -74,6 +74,7 @@ internal object ReadMoreConfigKeys {
     const val CUSTOM_PAGE_KEY = "customPageKey"
     const val DISABLE_RETURN_KEY = "disableReturnKey"
     const val BOOK_IMAGE_STYLE = "bookImageStyle"
+    const val TEXT_TOOLBAR = "textToolbar"
 }
 
 internal enum class ReadMoreConfigTab {
@@ -240,6 +241,11 @@ private fun InterfaceSettingsPage(
             title = stringResource(R.string.read_bar_style_follow_page),
             checked = state.boolean(PreferKey.readBarStyleFollowPage),
             onCheckedChange = { actions.onBooleanChanged(PreferKey.readBarStyleFollowPage, it) },
+        )
+        ReadMoreDivider(contentColor)
+        ActionSettingRow(
+            title = stringResource(R.string.text_selection_action_order),
+            onClick = { actions.onAction(ReadMoreConfigKeys.TEXT_TOOLBAR) },
         )
         ReadMoreDivider(contentColor)
         ChoiceSettingRow(
