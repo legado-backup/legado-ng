@@ -49,6 +49,7 @@ enum class NgFloatingTabBarVariant {
     STANDARD,
     SOLID_LIGHT_CONTENT,
 }
+enum class NgFloatingTabBarSize { STANDARD, COMPACT }
 
 /** 与 View 版 NgFloatingTabBar 对齐的 48dp 等宽悬浮 Dock。 */
 @Composable
@@ -58,6 +59,7 @@ fun NgFloatingTabBar(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
     variant: NgFloatingTabBarVariant = NgFloatingTabBarVariant.STANDARD,
+    size: NgFloatingTabBarSize = NgFloatingTabBarSize.STANDARD,
 ) {
     items.forEach { item ->
         require(item.text != null || !item.contentDescription.isNullOrBlank()) {
@@ -65,6 +67,7 @@ fun NgFloatingTabBar(
         }
     }
     val outerShape = RoundedCornerShape(12.dp)
+    val height = if (size == NgFloatingTabBarSize.COMPACT) 40.dp else 48.dp
     val tabs: @Composable RowScope.() -> Unit = {
         items.forEachIndexed { index, item ->
             val selected = index == selectedIndex.coerceIn(items.indices)
@@ -144,7 +147,7 @@ fun NgFloatingTabBar(
         NgFloatingTabBarVariant.STANDARD -> NgSettingsCardSurface(
             modifier = modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(height),
             cornerRadius = 12.dp,
             shape = outerShape,
             role = NgMaterialRole.CONTROL,
@@ -162,7 +165,7 @@ fun NgFloatingTabBar(
         NgFloatingTabBarVariant.SOLID_LIGHT_CONTENT -> Row(
             modifier = modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(height)
                 .clip(outerShape)
                 .background(colorResource(R.color.ng_neutral_container))
                 .border(

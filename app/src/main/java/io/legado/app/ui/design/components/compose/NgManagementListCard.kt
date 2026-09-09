@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +58,8 @@ import io.legado.app.ui.design.theme.NgTheme
  *
  * 业务页面负责 UiModel、排序和菜单；组件只维护信息层级与点击区域。
  */
+enum class NgManagementListCardSize { STANDARD, COMPACT_SINGLE_LINE }
+
 @Composable
 fun NgManagementListCard(
     title: String,
@@ -76,21 +79,26 @@ fun NgManagementListCard(
     containerColor: Color? = null,
     borderColor: Color? = null,
     borderWidth: Dp = 0.dp,
+    titleColor: Color? = null,
+    titleFontFamily: FontFamily? = null,
+    size: NgManagementListCardSize = NgManagementListCardSize.STANDARD,
     leading: @Composable () -> Unit
 ) {
     require(headerTags.size <= 2) { "Management card supports at most 2 header tags" }
     require(detailTags.size <= 3) { "Management card supports at most 3 detail tags" }
     val isCompactGrid = variant == NgManagementListCardVariant.COMPACT_GRID
     val isMultilineSummary = variant == NgManagementListCardVariant.MULTILINE_SUMMARY
+    val compactLine = size == NgManagementListCardSize.COMPACT_SINGLE_LINE
+    require(!compactLine || (summary.isNullOrEmpty() && headerTags.isEmpty() && detailTags.isEmpty()))
     val shape = RoundedCornerShape(
-        if (isCompactGrid) NgTheme.shapes.smallDp.dp else NgTheme.shapes.largeDp.dp
+        if (compactLine) 12.dp else if (isCompactGrid) NgTheme.shapes.smallDp.dp else NgTheme.shapes.largeDp.dp
     )
     val resolvedContainerColor = containerColor ?: ngDrawerContentCardColor()
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
-            .heightIn(min = if (isCompactGrid) 54.dp else 70.dp)
+            .heightIn(min = if (compactLine) 48.dp else if (isCompactGrid) 54.dp else 70.dp)
             .clip(shape)
             .background(resolvedContainerColor)
             .then(
@@ -119,14 +127,14 @@ fun NgManagementListCard(
         if (selected) {
             Box(
                 modifier = Modifier
-                    .width(if (isCompactGrid) 4.dp else 6.dp)
+                    .width(if (compactLine || isCompactGrid) 4.dp else 6.dp)
                     .fillMaxHeight()
                     .background(Color(NgTheme.colors.primary))
             )
         }
         Box(
             modifier = Modifier
-                .width(if (isCompactGrid) 44.dp else 58.dp)
+                .width(if (compactLine || isCompactGrid) 44.dp else 58.dp)
                 .fillMaxHeight()
                 .then(
                     if (onLeadingClick != null) {
@@ -144,8 +152,8 @@ fun NgManagementListCard(
                 .weight(1f)
                 .padding(
                     start = if (isCompactGrid) 0.dp else 4.dp,
-                    top = if (isCompactGrid) 6.dp else 10.dp,
-                    bottom = if (isCompactGrid) 6.dp else 10.dp,
+                    top = if (compactLine || isCompactGrid) 6.dp else 10.dp,
+                    bottom = if (compactLine || isCompactGrid) 6.dp else 10.dp,
                 ),
             verticalArrangement = Arrangement.Center
         ) {
@@ -153,15 +161,16 @@ fun NgManagementListCard(
                 Text(
                     text = title,
                     modifier = Modifier.weight(1f),
-                    color = colorResource(R.color.ng_on_surface),
-                    fontSize = if (isCompactGrid) {
+                    color = titleColor ?: colorResource(R.color.ng_on_surface),
+                    fontFamily = titleFontFamily,
+                    fontSize = if (compactLine) 16.sp else if (isCompactGrid) {
                         NgTheme.typography.denseItemTitleSp.sp
                     } else {
                         NgTheme.typography.itemTitleSp.sp
                     },
                     lineHeight = if (isCompactGrid) 14.sp else 19.sp,
                     letterSpacing = 0.sp,
-                    fontWeight = if (isCompactGrid) FontWeight.Medium else FontWeight.Bold,
+                    fontWeight = if (compactLine) FontWeight.Normal else if (isCompactGrid) FontWeight.Medium else FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

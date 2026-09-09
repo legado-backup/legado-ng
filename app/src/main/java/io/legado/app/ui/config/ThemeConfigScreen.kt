@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -47,6 +48,7 @@ import io.legado.app.help.config.FloatingBottomBarConfig
 import io.legado.app.help.config.ListeningCartoonType
 import io.legado.app.help.config.NgDynamicSceneTheme
 import io.legado.app.help.config.NgDrawerAppearanceConfig
+import io.legado.app.help.config.NgInterfaceFontStore
 import io.legado.app.help.config.NgSoftGradientColorMode
 import io.legado.app.help.config.NgSoftGradientColorPreset
 import io.legado.app.help.config.NgSoftGradientLightFieldPreset
@@ -184,6 +186,7 @@ internal fun ThemeConfigScreen(
     var drawerAppearanceExpanded by rememberSaveable { mutableStateOf(false) }
     var bookshelfTopBarExpanded by rememberSaveable { mutableStateOf(false) }
     var showSoftGradientColorSheet by rememberSaveable { mutableStateOf(false) }
+    var showInterfaceFontSheet by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -712,6 +715,16 @@ internal fun ThemeConfigScreen(
                     summary = state.fontScaleSummary,
                     onClick = onOpenFontScale
                 )
+                val context = LocalContext.current
+                val fontChoice = NgInterfaceFontStore.choice(context)
+                val systemFontIndex = NgInterfaceFontStore.systemChoices.indexOf(fontChoice)
+                NgSettingsItem(
+                    title = stringResource(R.string.interface_font),
+                    summary = if (systemFontIndex >= 0) {
+                        context.resources.getStringArray(R.array.system_typefaces)[systemFontIndex]
+                    } else NgInterfaceFontStore.name(context).ifBlank { stringResource(R.string.font_mode_custom) },
+                    onClick = { showInterfaceFontSheet = true },
+                )
             }
             if (
                 showAppearance &&
@@ -798,6 +811,9 @@ internal fun ThemeConfigScreen(
         }
     }
 
+    if (showInterfaceFontSheet) {
+        ThemeInterfaceFontEditorSheet(onDismissRequest = { showInterfaceFontSheet = false })
+    }
     NgSoftGradientColorPresetSheet(
         show = showSoftGradientColorSheet,
         currentMode = state.softGradientColorMode,

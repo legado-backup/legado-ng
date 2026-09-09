@@ -59,6 +59,7 @@ internal object NgThemeRuntimeAssets {
     }
 
     fun appTypeface(context: Context): Typeface? {
+        if (NgInterfaceFontStore.hasOverride(context)) return NgInterfaceFontStore.typeface(context)
         val theme = NgThemeLibraryStore.activeTheme(context) ?: return null
         val file = theme.resolvePackageAsset(theme.resourceProfile?.appFont) ?: return null
         val cacheKey = "${file.absolutePath}:${file.lastModified()}:${file.length()}"
@@ -76,8 +77,11 @@ internal object NgThemeRuntimeAssets {
     }
 
     fun applyAppTypeface(context: Context, view: TextView) {
+        // XML Style 继承的等宽字体不一定出现在 attrs 中，同样保留代码／日志语义。
+        val style = view.typeface?.style ?: Typeface.NORMAL
+        if (view.typeface == Typeface.create(Typeface.MONOSPACE, style)) return
         val typeface = appTypeface(context) ?: return
-        view.setTypeface(typeface, view.typeface?.style ?: Typeface.NORMAL)
+        view.setTypeface(typeface, style)
     }
 
     private fun loadBitmap(file: File?, targetSize: Int): Bitmap? {
