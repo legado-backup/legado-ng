@@ -344,8 +344,27 @@ internal fun HighlightRuleEditorPage(
                         accentColor = accentColor,
                         onSelected = {
                             actions.onHighlightDraftChanged(draft.copy(bgImageFit = it))
+                            if (it == 3) actions.onPageSelected(ReadStylePage.HIGHLIGHT_NINE_SLICE)
                         },
                     )
+                    if (draft.bgImageFit == 3) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                                .clickable(role = Role.Button) {
+                                    actions.onPageSelected(ReadStylePage.HIGHLIGHT_NINE_SLICE)
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                stringResource(R.string.highlight_nine_slice_editor),
+                                modifier = Modifier.weight(1f), color = contentColor, fontSize = 14.sp,
+                            )
+                            Icon(
+                                painterResource(R.drawable.ic_chevron_right_20), contentDescription = null,
+                                modifier = Modifier.size(20.dp), tint = contentColor,
+                            )
+                        }
+                    }
                     AdvancedSliderRow(
                         title = stringResource(R.string.highlight_rule_image_scale),
                         valueText = String.format(Locale.ROOT, "%.1f×", draft.bgImageScale),
@@ -731,7 +750,7 @@ internal fun AdvancedColorPage(
 }
 
 @Composable
-private fun AdvancedEditorHeader(
+internal fun AdvancedEditorHeader(
     title: String,
     contentColor: Color,
     onBack: () -> Unit,

@@ -100,6 +100,7 @@ internal enum class ReadStylePage {
     EDIT_UNDERLINE_COLOR,
     HIGHLIGHT,
     HIGHLIGHT_EDIT,
+    HIGHLIGHT_NINE_SLICE,
     HIGHLIGHT_TEXT_COLOR,
     HIGHLIGHT_BACKGROUND_COLOR,
     HIGHLIGHT_UNDERLINE_COLOR,
@@ -389,6 +390,13 @@ internal fun ReadStyleScreen(
                 )
 
                 ReadStylePage.HIGHLIGHT_EDIT -> HighlightRuleEditorPage(
+                    state = state,
+                    contentColor = contentColor,
+                    accentColor = accentColor,
+                    actions = actions,
+                )
+
+                ReadStylePage.HIGHLIGHT_NINE_SLICE -> ReadHighlightNineSlicePage(
                     state = state,
                     contentColor = contentColor,
                     accentColor = accentColor,
@@ -2034,6 +2042,7 @@ private fun HighlightRuleRow(
                     contentColor = contentColor,
                     actionEnabled = !isDragging,
                 )
+
             }
         }
         if (!isDragging) {

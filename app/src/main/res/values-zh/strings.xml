@@ -2326,6 +2326,14 @@
     <string name="highlight_rule_image_fit_stretch">拉伸</string>
     <string name="highlight_rule_image_fit_cover">裁切</string>
     <string name="highlight_rule_image_fit_nine">九宫格</string>
+    <string name="highlight_nine_slice_editor">九宫格切图</string>
+    <string name="highlight_nine_slice_left">左切分线</string>
+    <string name="highlight_nine_slice_right">右切分线</string>
+    <string name="highlight_nine_slice_top">上切分线</string>
+    <string name="highlight_nine_slice_bottom">下切分线</string>
+    <string name="highlight_nine_slice_decrease">减少百分之一</string>
+    <string name="highlight_nine_slice_increase">增加百分之一</string>
+    <string name="highlight_nine_slice_image_unavailable">无法加载背景图片</string>
     <string name="highlight_rule_image_scale">图片缩放</string>
     <string name="highlight_rule_italic">斜体</string>
     <string name="explore_category_empty">暂无可用分类</string>

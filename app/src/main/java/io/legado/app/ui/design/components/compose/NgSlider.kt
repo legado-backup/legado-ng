@@ -37,6 +37,7 @@ import kotlin.math.roundToInt
 
 enum class NgSliderVariant {
     CONTINUOUS,
+    INLINE,
     DISCRETE,
     COMPACT
 }
@@ -122,6 +123,11 @@ fun NgSlider(
     val currentOnValueChange = rememberUpdatedState(onValueChange)
     val currentOnValueChangeFinished = rememberUpdatedState(onValueChangeFinished)
     val compact = variant == NgSliderVariant.COMPACT
+    val thumbSize = when (variant) {
+        NgSliderVariant.COMPACT -> 6.dp
+        NgSliderVariant.INLINE -> 10.dp
+        else -> 12.dp
+    }
     fun snapToStep(rawValue: Float): Float {
         if (steps == 0) return rawValue.coerceIn(valueRange)
         return ngSliderStepValue(rawValue, valueRange, steps)
@@ -138,7 +144,7 @@ fun NgSlider(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(if (compact) 36.dp else 48.dp)
+            .height(if (compact) 36.dp else if (variant == NgSliderVariant.INLINE) 40.dp else 48.dp)
             .semantics {
                 progressBarRangeInfo = ProgressBarRangeInfo(
                     current = currentValue,
@@ -156,11 +162,11 @@ fun NgSlider(
                     }
                 }
             }
-            .pointerInput(enabled, valueRange, steps, visualSteps, compact) {
+            .pointerInput(enabled, valueRange, steps, visualSteps, variant) {
                 if (!enabled) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    val thumbRadius = if (compact) 6.dp.toPx() else 12.dp.toPx()
+                    val thumbRadius = thumbSize.toPx()
                     currentOnValueChange.value(
                         valueForPosition(down.position.x, size.width.toFloat(), thumbRadius)
                     )
@@ -185,10 +191,11 @@ fun NgSlider(
                 }
             }
     ) {
-        val thumbRadius = if (compact) 6.dp.toPx() else 12.dp.toPx()
-        val innerThumbRadius = 8.dp.toPx()
+        val thumbRadius = thumbSize.toPx()
+        val innerThumbRadius = if (variant == NgSliderVariant.INLINE) 6.dp.toPx() else 8.dp.toPx()
         val trackHeight = when (variant) {
             NgSliderVariant.CONTINUOUS -> 6.dp.toPx()
+            NgSliderVariant.INLINE -> 5.dp.toPx()
             NgSliderVariant.DISCRETE -> 10.dp.toPx()
             NgSliderVariant.COMPACT -> 2.dp.toPx()
         }

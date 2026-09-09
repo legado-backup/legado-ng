@@ -2425,6 +2425,14 @@
     <string name="highlight_rule_image_fit_stretch">Stretch</string>
     <string name="highlight_rule_image_fit_cover">Cover</string>
     <string name="highlight_rule_image_fit_nine">Nine-slice</string>
+    <string name="highlight_nine_slice_editor">Nine-slice editor</string>
+    <string name="highlight_nine_slice_left">Left split</string>
+    <string name="highlight_nine_slice_right">Right split</string>
+    <string name="highlight_nine_slice_top">Top split</string>
+    <string name="highlight_nine_slice_bottom">Bottom split</string>
+    <string name="highlight_nine_slice_decrease">Decrease by one percent</string>
+    <string name="highlight_nine_slice_increase">Increase by one percent</string>
+    <string name="highlight_nine_slice_image_unavailable">Unable to load background image</string>
     <string name="highlight_rule_image_scale">Image scale</string>
     <string name="highlight_rule_italic">Italic</string>
     <string name="explore_category_empty">No available categories</string>

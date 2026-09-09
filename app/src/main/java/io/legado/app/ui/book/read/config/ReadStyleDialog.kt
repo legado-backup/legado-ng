@@ -567,6 +567,10 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
             return
         }
         when {
+            page == ReadStylePage.HIGHLIGHT_NINE_SLICE -> {
+                page = ReadStylePage.HIGHLIGHT_EDIT
+                refreshUi()
+            }
             page.isPresetColorEditorPage() -> {
                 page = ReadStylePage.EDIT
                 clearEditorColorInitialState()
