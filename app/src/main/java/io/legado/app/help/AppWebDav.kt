@@ -122,10 +122,13 @@ object AppWebDav {
     suspend fun restoreWebDav(name: String) {
         authorization?.let {
             val webDav = WebDav(rootWebDavUrl + name, it)
-            webDav.downloadTo(Backup.zipFilePath, true)
-            FileUtils.delete(Backup.backupPath)
-            ZipUtils.unZipToPath(File(Backup.zipFilePath), Backup.backupPath)
-            Restore.restoreLocked(Backup.backupPath)
+            val download = File.createTempFile("webdav-restore-", ".zip", appCtx.cacheDir)
+            try {
+                webDav.downloadTo(download.absolutePath, true)
+                Restore.restore(appCtx, android.net.Uri.fromFile(download))
+            } finally {
+                download.delete()
+            }
         }
     }
 

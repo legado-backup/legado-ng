@@ -47,7 +47,6 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import androidx.core.content.edit
 import io.legado.app.model.VideoPlay.VIDEO_PREF_NAME
-import kotlinx.coroutines.currentCoroutineContext
 
 /**
  * 备份
@@ -61,7 +60,7 @@ object Backup {
 
     private const val TAG = "Backup"
 
-    private val mutex = Mutex()
+    internal val mutex = Mutex()
 
     private val backupFileNames by lazy {
         arrayOf(
@@ -83,6 +82,7 @@ object Backup {
             ReadBookConfig.configFileName,
             ReadBookConfig.shareConfigFileName,
             ThemeConfig.configFileName,
+            ReadHighlightRuleStore.fileName,
             BookCover.configFileName,
             "config.xml",
             "videoConfig.xml"
@@ -133,8 +133,18 @@ object Backup {
     }
 
     private suspend fun backup(context: Context, path: String?) {
+        try {
+            createBackup(context, path)
+        } finally {
+            FileUtils.delete(backupPath)
+            FileUtils.delete(zipFilePath)
+        }
+    }
+
+    private suspend fun createBackup(context: Context, path: String?) {
         LogUtils.d(TAG, "开始备份 path:$path")
-        LocalConfig.lastBackup = System.currentTimeMillis()
+        val modules = BackupModules.selected()
+        require(modules.isNotEmpty()) { "请至少选择一个备份模块" }
         val aes = BackupAES()
         FileUtils.delete(backupPath)
         writeListToJson(appDb.bookDao.all, "bookshelf.json", backupPath)
@@ -184,10 +194,16 @@ object Backup {
                 .writeText(GSON.toJson(it))
         }
         currentCoroutineContext().ensureActive()
+        val selectedFiles = backupFileNames.filter { it == "config.xml" || BackupModules.fileModule(it).id in modules }
+        backupFileNames.filterNot { it in selectedFiles }.forEach { File(backupPath, it).delete() }
+        val preferences = BackupResources.prepare(
+            File(backupPath), modules,
+            appCtx.defaultSharedPreferences.all.filterKeys { BackupModules.includesPreference(it, modules) },
+        )
         appCtx.getSharedPreferences(backupPath, "config")?.let { sp ->
-            val edit = sp.edit()
-            appCtx.defaultSharedPreferences.all.forEach { (key, value) ->
-                if (BackupConfig.keyIsNotIgnore(key)) {
+            val edit = sp.edit().clear()
+            preferences.forEach { (key, value) ->
+                run {
                     when (key) {
                         PreferKey.webDavPassword -> {
                             edit.putString(key, aes.runCatching {
@@ -201,15 +217,17 @@ object Backup {
                             is Long -> edit.putLong(key, value)
                             is Float -> edit.putFloat(key, value)
                             is String -> edit.putString(key, value)
+                            is Set<*> -> edit.putStringSet(key, value.filterIsInstance<String>().toSet())
                         }
                     }
                 }
             }
-            edit.commit()
+            check(edit.commit()) { "无法写入备份设置" }
         }
         currentCoroutineContext().ensureActive()
-        appCtx.getSharedPreferences(backupPath, "videoConfig")?.let { sp ->
+        if (BackupModule.OTHER.id in modules) appCtx.getSharedPreferences(backupPath, "videoConfig")?.let { sp ->
             sp.edit(commit = true) {
+                clear()
                 appCtx.getSharedPreferences(VIDEO_PREF_NAME, Context.MODE_PRIVATE).all.forEach { (key, value) ->
                     when (value) {
                         is Int -> putInt(key, value)
@@ -223,7 +241,8 @@ object Backup {
         }
         currentCoroutineContext().ensureActive()
         val zipFileName = getNowZipFileName()
-        val paths = arrayListOf(*backupFileNames)
+        BackupResources.finishManifest(File(backupPath), selectedFiles)
+        val paths = ArrayList(selectedFiles + BackupResources.MANIFEST + BackupResources.ASSETS)
         for (i in 0 until paths.size) {
             paths[i] = backupPath + File.separator + paths[i]
         }
@@ -234,7 +253,8 @@ object Backup {
         } else {
             zipFileName
         }
-        if (ZipUtils.zipFiles(paths, zipFilePath)) {
+        check(ZipUtils.zipFiles(paths, zipFilePath)) { "备份打包失败" }
+        run {
             when {
                 path.isNullOrBlank() -> {
                     copyBackup(context.getExternalFilesDir(null)!!, backupFileName)
@@ -252,20 +272,13 @@ object Backup {
                 AppWebDav.backUpWebDav(zipFileName)
             } catch (e: Exception) {
                 AppLog.put("上传备份至webdav失败\n$e", e)
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                throw NoStackTraceException("本地备份已保存，但上传 WebDAV 失败：${e.localizedMessage}")
             }
         }
         FileUtils.delete(backupPath)
         FileUtils.delete(zipFilePath)
-        currentCoroutineContext().ensureActive()
-        ReadBookConfig.getAllPicBgStr().map {
-            if (it.contains(File.separator)) {
-                File(it)
-            } else {
-                appCtx.externalFiles.getFile("bg", it)
-            }
-        }.let {
-            AppWebDav.upBgs(it.toTypedArray())
-        }
+        LocalConfig.lastBackup = System.currentTimeMillis()
     }
 
     private suspend fun writeListToJson(list: List<Any>, fileName: String, path: String) {

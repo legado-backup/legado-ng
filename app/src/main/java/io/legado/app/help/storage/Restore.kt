@@ -65,45 +65,59 @@ import java.io.FileInputStream
  */
 object Restore {
 
-    private val mutex = Mutex()
-
+    private val mutex get() = Backup.mutex
     private const val TAG = "Restore"
+    private val failures = arrayListOf<String>()
 
     suspend fun restore(context: Context, uri: Uri) {
-        LogUtils.d(TAG, "开始恢复备份 uri:$uri")
-        kotlin.runCatching {
-            FileUtils.delete(Backup.backupPath)
-            if (uri.isContentScheme()) {
-                DocumentFile.fromSingleUri(context, uri)!!.openInputStream()!!.use {
-                    ZipUtils.unZipToPath(it, Backup.backupPath)
+        mutex.withLock {
+            val staging = File(context.cacheDir, "backup-restore-${java.util.UUID.randomUUID()}")
+            try {
+                val input = if (uri.isContentScheme()) {
+                    context.contentResolver.openInputStream(uri)
+                } else File(requireNotNull(uri.path)).inputStream()
+                requireNotNull(input) { "无法读取备份" }.use {
+                    BackupResources.extract(it, staging)
                 }
-            } else {
-                ZipUtils.unZipToPath(File(uri.path!!), Backup.backupPath)
+                restore(staging.path)
+                LocalConfig.lastBackup = System.currentTimeMillis()
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                appCtx.toastOnUi("恢复备份失败：${error.localizedMessage}")
+                throw error
+            } finally {
+                staging.deleteRecursively()
             }
-        }.onFailure {
-            AppLog.put("复制解压文件出错\n${it.localizedMessage}", it)
-            return
-        }
-        kotlin.runCatching {
-            restoreLocked(Backup.backupPath)
-            LocalConfig.lastBackup = System.currentTimeMillis()
-        }.onFailure {
-            appCtx.toastOnUi("恢复备份出错\n${it.localizedMessage}")
-            AppLog.put("恢复备份出错\n${it.localizedMessage}", it)
         }
     }
 
     suspend fun restoreLocked(path: String) {
-        mutex.withLock {
-            restore(path)
-        }
+        mutex.withLock { restore(path) }
     }
 
     private suspend fun restore(path: String) {
+        failures.clear()
+        val modules = BackupResources.validate(File(path))
         val aes = BackupAES()
-        val backupPreferences = appCtx.getSharedPreferences(path, "config")?.all
+        val storedPreferences = appCtx.getSharedPreferences(path, "config")?.all
+        val backupPreferences = if (modules != null) {
+            requireNotNull(storedPreferences) { "无法读取备份设置" }
+            // Load typed primary configs before any copy/merge; their legacy loaders otherwise
+            // swallow parse errors and silently fall back to defaults.
+            if (BackupModule.READER.id in modules) {
+                val configs = GSON.fromJson(File(path, ReadBookConfig.configFileName).readText(), Array<ReadBookConfig.Config>::class.java)
+                require(!configs.isNullOrEmpty()) { "阅读预设为空" }
+                configs.forEach { requireNotNull(it) { "阅读预设包含空项目" } }
+                requireNotNull(GSON.fromJson(File(path, ReadBookConfig.shareConfigFileName).readText(), ReadBookConfig.Config::class.java))
+                requireNotNull(GSON.fromJson(File(path, ReadHighlightRuleStore.fileName).readText(), Array<io.legado.app.help.config.ReadHighlightRule>::class.java))
+            }
+            if (BackupModule.APPEARANCE.id in modules) {
+                requireNotNull(GSON.fromJson(File(path, ThemeConfig.configFileName).readText(), Array<ThemeConfig.Config>::class.java))
+            }
+            BackupResources.restoreResources(File(path), storedPreferences)
+        } else storedPreferences
         val backupGroups = fileToListT<BookGroup>(path, "bookGroup.json")
-        val isMd3Backup = Md3BackupCompatibility.isBackup(
+        val isMd3Backup = modules == null && Md3BackupCompatibility.isBackup(
             backupPreferences,
             backupGroups.orEmpty().map(BookGroup::groupId)
         )
@@ -210,10 +224,11 @@ object Restore {
             if (!json.isJsonArray()) {
                 json = aes.decryptStr(json)
             }
-            GSON.fromJsonArray<Server>(json).getOrNull()?.let {
+            GSON.fromJsonArray<Server>(json).getOrThrow().let {
                 appDb.serverDao.insert(*it.toTypedArray())
             }
         }?.onFailure {
+            failures += it.localizedMessage.orEmpty()
             AppLog.put("恢复服务器配置出错\n${it.localizedMessage}", it)
         }
         File(path, DirectLinkUpload.ruleFileName).takeIf {
@@ -222,17 +237,26 @@ object Restore {
             val json = readText()
             ACache.get(cacheDir = false).put(DirectLinkUpload.ruleFileName, json)
         }?.onFailure {
+            failures += it.localizedMessage.orEmpty()
             AppLog.put("恢复直链上传出错\n${it.localizedMessage}", it)
         }
         File(path, ThemeConfig.configFileName).takeIf(File::exists)?.let {
-            LogUtils.d(TAG, "忽略整包备份中的旧主题配置，保留当前 NG 主题")
+            if (modules != null && !BackupConfig.ignoreThemeConfig) {
+                val themes = GSON.fromJson(it.readText(), Array<ThemeConfig.Config>::class.java).toList()
+                ThemeConfig.configList.clear()
+                ThemeConfig.configList.addAll(themes)
+                ThemeConfig.save()
+            } else {
+                LogUtils.d(TAG, "保留当前 NG 主题配置")
+            }
         }
         File(path, BookCover.configFileName).takeIf {
-            it.exists()
+            it.exists() && !BackupConfig.ignoreCoverConfig
         }?.runCatching {
             val json = readText()
             BookCover.saveCoverRule(json)
         }?.onFailure {
+            failures += it.localizedMessage.orEmpty()
             AppLog.put("恢复封面规则出错\n${it.localizedMessage}", it)
         }
         var readConfigsRestored = false
@@ -243,21 +267,21 @@ object Restore {
             File(path, ReadBookConfig.configFileName).takeIf {
                 it.exists()
             }?.runCatching {
-                FileUtils.delete(ReadBookConfig.configFilePath)
-                copyTo(File(ReadBookConfig.configFilePath))
+                replaceConfigFile(this, File(ReadBookConfig.configFilePath))
                 ReadBookConfig.initConfigs()
                 readConfigsRestored = true
             }?.onFailure {
-                AppLog.put("恢复阅读界面出错\n${it.localizedMessage}", it)
+                failures += it.localizedMessage.orEmpty()
+            AppLog.put("恢复阅读界面出错\n${it.localizedMessage}", it)
             }
             File(path, ReadBookConfig.shareConfigFileName).takeIf {
                 it.exists()
             }?.runCatching {
-                FileUtils.delete(ReadBookConfig.shareConfigFilePath)
-                copyTo(File(ReadBookConfig.shareConfigFilePath))
+                replaceConfigFile(this, File(ReadBookConfig.shareConfigFilePath))
                 ReadBookConfig.initShareConfig()
             }?.onFailure {
-                AppLog.put("恢复阅读界面出错\n${it.localizedMessage}", it)
+                failures += it.localizedMessage.orEmpty()
+            AppLog.put("恢复阅读界面出错\n${it.localizedMessage}", it)
             }
         }
         if (!BackupConfig.ignoreReadConfig &&
@@ -266,11 +290,11 @@ object Restore {
             val highlightRuleFile = File(path, ReadHighlightRuleStore.fileName)
             if (highlightRuleFile.exists()) {
                 highlightRuleFile.runCatching {
-                    FileUtils.delete(ReadHighlightRuleStore.filePath)
-                    copyTo(File(ReadHighlightRuleStore.filePath))
+                    replaceConfigFile(this, File(ReadHighlightRuleStore.filePath))
                     ReadHighlightRuleStore.reloadFromFile()
                 }.onFailure {
-                    AppLog.put("恢复高亮规则出错\n${it.localizedMessage}", it)
+                    failures += it.localizedMessage.orEmpty()
+            AppLog.put("恢复高亮规则出错\n${it.localizedMessage}", it)
                 }
             } else if (readConfigsRestored) {
                 ReadBookConfig.migrateRestoredEmbeddedHighlightRules()
@@ -279,10 +303,15 @@ object Restore {
         //AppWebDav.downBgs()
         backupPreferences?.let { map ->
             val edit = appCtx.defaultSharedPreferences.edit()
-
+            if (modules != null) {
+                appCtx.defaultSharedPreferences.all.keys.filter {
+                    BackupModules.includesPreference(it, modules) && BackupConfig.keyIsNotIgnore(it)
+                }.forEach(edit::remove)
+            }
             map.forEach { (key, value) ->
                 if (BackupConfig.keyIsNotIgnore(key) &&
-                    BackupRestorePolicy.shouldRestorePreference(key, isMd3Backup)
+                    (modules == null || BackupModules.includesPreference(key, modules)) &&
+                    BackupRestorePolicy.shouldRestorePreference(key, isMd3Backup, modules != null)
                 ) {
                     val compatibleValue = if (isMd3Backup) {
                         Md3BackupCompatibility.normalizePreference(key, value)
@@ -310,11 +339,12 @@ object Restore {
                             is Long -> edit.putLong(key, compatibleValue)
                             is Float -> edit.putFloat(key, compatibleValue)
                             is String -> edit.putString(key, compatibleValue)
+                            is Set<*> -> edit.putStringSet(key, compatibleValue.filterIsInstance<String>().toSet())
                         }
                     }
                 }
             }
-            edit.apply()
+            check(edit.commit()) { "无法保存恢复后的设置" }
         }
         appCtx.getSharedPreferences(path, "videoConfig")?.all?.let { map ->
             appCtx.getSharedPreferences(VIDEO_PREF_NAME, Context.MODE_PRIVATE).edit().apply {
@@ -330,12 +360,15 @@ object Restore {
                 apply()
             }
         }
-        ReadBookConfig.apply {
+        if ((modules == null || BackupModule.READER.id in modules) && !BackupConfig.ignoreReadConfig) ReadBookConfig.apply {
             comicStyleSelect = appCtx.getPrefInt(PreferKey.comicStyleSelect)
             readStyleSelect = appCtx.getPrefInt(PreferKey.readStyleSelect)
             shareLayout = appCtx.getPrefBoolean(PreferKey.shareLayout)
             reloadGlobalReadFloatingColorPreferences()
             hideStatusBar = appCtx.getPrefBoolean(PreferKey.hideStatusBar)
+            readBodyToLh = appCtx.getPrefBoolean(PreferKey.readBodyToLh, true)
+            useZhLayout = appCtx.getPrefBoolean(PreferKey.useZhLayout)
+            isNightTheme = appCtx.getPrefBoolean(PreferKey.readNightTheme, false)
             autoReadSpeed = appCtx.getPrefInt(
                 PreferKey.autoReadSpeed,
                 ReadBookConfig.defaultAutoReadSpeed,
@@ -345,6 +378,13 @@ object Restore {
                 ReadBookConfig.defaultAutoReadPageMode,
             )
         }
+        if (modules != null) {
+            if (BackupModule.APPEARANCE.id in modules && !BackupConfig.ignoreThemeConfig)
+                io.legado.app.help.config.NgThemeLibraryStore.reloadAfterRestore(appCtx)
+            if (BackupModule.COVERS.id in modules && !BackupConfig.ignoreCoverConfig)
+                io.legado.app.help.config.NgCoverAlbumStore.reloadAfterRestore(appCtx)
+        }
+        check(failures.isEmpty()) { "部分项目恢复失败：${failures.distinct().joinToString("；")}" }
         appCtx.toastOnUi(R.string.restore_success)
         withContext(Main) {
             delay(100)
@@ -352,6 +392,16 @@ object Restore {
                 LauncherIconHelp.changeIcon(appCtx.getPrefString(PreferKey.launcherIcon))
             }
             ThemeConfig.applyDayNight(appCtx)
+        }
+    }
+
+    private fun replaceConfigFile(source: File, target: File) {
+        val temporary = File.createTempFile("restore-", ".tmp", target.parentFile)
+        try {
+            source.copyTo(temporary, overwrite = true)
+            java.nio.file.Files.move(temporary.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            temporary.delete()
         }
     }
 
@@ -373,6 +423,8 @@ object Restore {
                 LogUtils.d(TAG, "阅读恢复备份 $fileName 文件不存在")
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            failures += "$fileName: ${e.localizedMessage}"
             AppLog.put("$fileName\n读取解析出错\n${e.localizedMessage}", e)
             appCtx.toastOnUi("$fileName\n读取文件出错\n${e.localizedMessage}")
         }

@@ -84,6 +84,10 @@ object BackupConfig {
         PreferKey.clickActionBR
     )
 
+    internal val readPreferenceKeys get() = readPrefKeys.toSet() + io.legado.app.help.config.ReadPresetPreferences.preferenceKeys
+    internal val coverPreferenceKeys get() = coverPrefKeys.toSet()
+    internal fun isPortablePreference(key: String): Boolean = key !in ignorePrefKeys || key == PreferKey.defaultCover || key == PreferKey.defaultCoverDark
+
     private val themePrefKeys = BackupRestorePolicy.themeConfigPreferenceKeys
 
     private val coverPrefKeys = arrayOf(
@@ -97,10 +101,10 @@ object BackupConfig {
 
     fun keyIsNotIgnore(key: String): Boolean {
         return when {
-            ignorePrefKeys.contains(key) -> false
-            ignoreReadConfig && readPrefKeys.contains(key) -> false
-            ignoreThemeConfig && themePrefKeys.contains(key) -> false
-            ignoreCoverConfig && coverPrefKeys.contains(key) -> false
+            !isPortablePreference(key) -> false
+            ignoreReadConfig && BackupModules.preferenceModule(key) == BackupModule.READER -> false
+            ignoreThemeConfig && (themePrefKeys.contains(key) || key.startsWith("ngInterfaceFont")) -> false
+            ignoreCoverConfig && BackupModules.preferenceModule(key) == BackupModule.COVERS -> false
             PreferKey.themeMode == key && ignoreThemeMode -> false
             key in bookshelfLayoutPreferenceKeys && ignoreBookshelfLayout -> false
             PreferKey.showRss == key && ignoreShowRss -> false
@@ -113,9 +117,9 @@ object BackupConfig {
         get() = ignoreConfig[readConfigKey] == true
     private val ignoreThemeMode: Boolean
         get() = ignoreConfig[PreferKey.themeMode] == true
-    private val ignoreThemeConfig: Boolean
+    internal val ignoreThemeConfig: Boolean
         get() = ignoreConfig[themeConfigKey] == true
-    private val ignoreCoverConfig: Boolean
+    internal val ignoreCoverConfig: Boolean
         get() = ignoreConfig[coverConfigKey] == true
     private val ignoreBookshelfLayout: Boolean
         get() = ignoreConfig[PreferKey.bookshelfLayout] == true
@@ -126,7 +130,7 @@ object BackupConfig {
     val ignoreLocalBook: Boolean
         get() = ignoreConfig[localBookKey] == true
 
-    private val bookshelfLayoutPreferenceKeys = setOf(
+    internal val bookshelfLayoutPreferenceKeys = setOf(
         PreferKey.bookshelfLayout,
         PreferKey.bookshelfHomeMode,
         PreferKey.showBooknameLayout,
@@ -217,7 +221,8 @@ internal object BackupRestorePolicy {
 
     fun shouldRestoreHighlightRules(isMd3Backup: Boolean): Boolean = !isMd3Backup
 
-    fun shouldRestorePreference(key: String, isMd3Backup: Boolean): Boolean {
+    fun shouldRestorePreference(key: String, isMd3Backup: Boolean, nativePackage: Boolean = false): Boolean {
+        if (nativePackage && !isMd3Backup) return true
         if (
             key == PreferKey.themeMode ||
             key == PreferKey.readNightTheme ||

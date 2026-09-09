@@ -8,6 +8,15 @@ import org.junit.Test
 class BackupRestorePolicyTest {
 
     @Test
+    fun nativeResourcePackageRestoresAppearanceWithoutChangingLegacyPolicy() {
+        listOf(PreferKey.themeMode, PreferKey.ngColorLightPrimary, "ngManagedThemes.v1").forEach {
+            assertTrue(BackupRestorePolicy.shouldRestorePreference(it, false, nativePackage = true))
+            assertFalse(BackupRestorePolicy.shouldRestorePreference(it, false))
+            assertFalse(BackupRestorePolicy.shouldRestorePreference(it, true, nativePackage = true))
+        }
+    }
+
+    @Test
     fun keepsThemeAndBarAppearanceOutsideWholeBackupRestore() {
         val appearanceKeys = listOf(
             PreferKey.themeMode,

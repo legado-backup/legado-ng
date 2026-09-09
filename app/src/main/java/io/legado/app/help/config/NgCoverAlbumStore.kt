@@ -236,6 +236,11 @@ internal object NgCoverAlbumStore {
         }
     }
 
+    internal fun reloadAfterRestore(context: Context) {
+        synchronized(lock) { initialized = false }
+        ensureInitialized(context)
+    }
+
     private fun ensureInitialized(context: Context) {
         if (initialized) return
         synchronized(lock) {

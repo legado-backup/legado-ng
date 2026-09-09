@@ -56,6 +56,8 @@ internal object ReadPresetPreferences {
         PreferKey.readFloatingGlobalColorStyle to ReadFloatingColorStyle.entries.map { it.storageValue }.toSet(),
     )
 
+    val preferenceKeys: Set<String> get() = booleans.keys + strings.keys + integers.keys
+
     fun capture(): JsonObject = JsonObject().apply {
         booleans.forEach { (key, default) -> addProperty(key, appCtx.getPrefBoolean(key, default)) }
         strings.forEach { (key, default) -> addProperty(key, appCtx.getPrefString(key, default)) }
