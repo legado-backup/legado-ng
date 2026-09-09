@@ -76,6 +76,7 @@ import io.legado.app.ui.design.components.compose.NgSlider
 import io.legado.app.ui.design.components.compose.NgSliderStepButton
 import io.legado.app.ui.design.components.compose.NgSliderVariant
 import io.legado.app.ui.design.components.compose.NgSwitchControl
+import io.legado.app.ui.design.components.compose.NgSwitchActionGroup
 import io.legado.app.ui.design.components.compose.ngSliderStepValue
 import io.legado.app.ui.design.theme.NgTheme
 import io.legado.app.ui.config.NgInlineColorPicker
@@ -145,6 +146,7 @@ private data class ReadStyleShortcut(
 )
 
 internal data class ReadStyleUiState(
+    val creatingPreset: Boolean = false,
     val presets: List<ReadStylePresetUi>,
     val selectedPresetIndex: Int,
     val selectedPresetName: String,
@@ -241,6 +243,7 @@ internal data class ReadStyleActions(
     val onPageAnimChanged: (Int) -> Unit,
     val onCreateHighlight: () -> Unit,
     val onEditHighlight: (Int) -> Unit,
+    val onCopyHighlight: (String) -> Unit,
     val onHighlightDraftChanged: (ReadHighlightRule) -> Unit,
     val onSelectHighlightBackground: () -> Unit,
     val onClearHighlightBackground: () -> Unit,
@@ -697,12 +700,14 @@ private fun EditorPage(
     actions: ReadStyleActions,
 ) {
     val indicatorColor = Color(NgTheme.colors.primary)
+    val editorHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.85f
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(EditorPageHeight),
+            .height(editorHeight),
     ) {
         EditorHeader(
+            creatingPreset = state.creatingPreset,
             mode = state.editorMode,
             modeLabel = state.editorModeLabel,
             contentColor = contentColor,
@@ -875,6 +880,7 @@ private fun EditorPage(
 
 @Composable
 private fun EditorHeader(
+    creatingPreset: Boolean,
     mode: Int,
     modeLabel: String,
     contentColor: Color,
@@ -903,7 +909,9 @@ private fun EditorHeader(
             )
         }
         Text(
-            text = stringResource(R.string.read_style_edit_title),
+            text = stringResource(
+                if (creatingPreset) R.string.read_style_create_title else R.string.read_style_edit_title
+            ),
             modifier = Modifier.padding(start = 2.dp),
             color = contentColor,
             fontSize = 18.sp,
@@ -1800,6 +1808,7 @@ private fun HighlightPage(
                             onSelectedChanged = {
                                 actions.onToggleHighlightSelection(item.id)
                             },
+                            onCopy = { actions.onCopyHighlight(item.id) },
                             onEnabledChanged = { enabled ->
                                 actions.onHighlightEnabledChanged(index, enabled)
                             },
@@ -1941,6 +1950,7 @@ private fun HighlightRuleRow(
     sortDescription: String,
     onClick: () -> Unit,
     onSelectedChanged: () -> Unit,
+    onCopy: () -> Unit,
     onEnabledChanged: (Boolean) -> Unit,
 ) {
     val itemHeight = 60.dp
@@ -2015,10 +2025,14 @@ private fun HighlightRuleRow(
                 )
             }
             if (!selectionMode) {
-                NgSwitchControl(
+                NgSwitchActionGroup(
                     checked = item.enabled,
                     onCheckedChange = onEnabledChanged,
-                    modifier = Modifier.size(width = 52.dp, height = 36.dp),
+                    actionIcon = painterResource(R.drawable.ic_copy),
+                    actionDescription = stringResource(R.string.highlight_rule_copy),
+                    onAction = onCopy,
+                    contentColor = contentColor,
+                    actionEnabled = !isDragging,
                 )
             }
         }

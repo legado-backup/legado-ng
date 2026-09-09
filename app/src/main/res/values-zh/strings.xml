@@ -2231,6 +2231,7 @@
     <string name="reading_presets">阅读预设</string>
     <string name="create_style">＋ 新建</string>
     <string name="read_style_edit_title">编辑预设</string>
+    <string name="read_style_create_title">新建预设</string>
     <string name="read_style_restore_current">恢复当前预设</string>
     <string name="read_style_restore_current_summary">恢复为内置默认配置</string>
     <string name="read_style_restore_unavailable">当前预设没有默认配置</string>
@@ -2286,6 +2287,8 @@
     <string name="highlight_rule_preview">预览效果</string>
     <string name="highlight_rule_invalid_pattern">正则表达式无效，规则已保存为停用</string>
     <string name="highlight_rule_default_name">新规则</string>
+    <string name="highlight_rule_copy">复制规则</string>
+    <string name="highlight_rule_copy_name">%1$s 副本</string>
     <string name="highlight_rule_default_sample">斗之力，三段！</string>
     <string name="read_style_full_underline">全文下划线</string>
     <string name="read_style_full_underline_title">全文下划线</string>

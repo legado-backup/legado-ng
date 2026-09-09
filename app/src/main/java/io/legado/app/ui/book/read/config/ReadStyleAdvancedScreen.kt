@@ -1,5 +1,7 @@
 package io.legado.app.ui.book.read.config
 
+import android.graphics.Bitmap
+import android.graphics.RectF
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
@@ -25,15 +28,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -49,12 +56,16 @@ import androidx.compose.ui.unit.sp
 import io.legado.app.R
 import io.legado.app.help.config.ReadHighlightRule
 import io.legado.app.ui.book.read.ReadDrawerStyle
+import io.legado.app.ui.book.read.page.provider.ReadCharStyle
+import io.legado.app.ui.book.read.page.provider.ReadHighlightImageRenderer
 import io.legado.app.ui.config.NgInlineColorPicker
 import io.legado.app.ui.design.components.compose.NgSlider
 import io.legado.app.ui.design.components.compose.NgSliderVariant
 import io.legado.app.ui.design.components.compose.NgSwitchControl
 import io.legado.app.ui.design.theme.NgTheme
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -181,10 +192,11 @@ internal fun HighlightRuleEditorPage(
     actions: ReadStyleActions,
 ) {
     val draft = state.highlightDraft ?: return
+    val editorHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(AdvancedPageHeight),
+            .height(editorHeight),
     ) {
         AdvancedEditorHeader(
             title = stringResource(
@@ -488,6 +500,31 @@ private fun HighlightRulePreview(
     val text = rule.sampleText.ifBlank { stringResource(R.string.highlight_rule_sample) }
     val textColor = rule.textColor?.let(::Color) ?: contentColor
     val underlineColor = rule.underlineColor?.let(::Color) ?: textColor
+    val imagePath = rule.bgImage.orEmpty()
+    val loadedImage by produceState<Pair<String, Bitmap?>?>(null, imagePath) {
+        value = null
+        if (imagePath.isNotBlank()) {
+            value = imagePath to withContext(Dispatchers.IO) {
+                ReadHighlightImageRenderer.loadBitmap(imagePath)
+            }
+        }
+    }
+    // 路径改变后的首帧也不能继续显示上一张图片。
+    val backgroundImage = loadedImage?.takeIf { it.first == imagePath }?.second
+    val imageStyle = remember(
+        imagePath, rule.bgImageFit, rule.bgImageScale,
+        rule.npLeft, rule.npRight, rule.npTop, rule.npBottom,
+    ) {
+        ReadCharStyle(
+            bgImage = imagePath,
+            bgImageFit = rule.bgImageFit,
+            bgImageScale = rule.bgImageScale,
+            npLeft = rule.npLeft,
+            npRight = rule.npRight,
+            npTop = rule.npTop,
+            npBottom = rule.npBottom,
+        )
+    }
     val bottomPadding = if (rule.underlineMode == 0) {
         0.dp
     } else {
@@ -517,7 +554,26 @@ private fun HighlightRulePreview(
         ) {
             Text(
                 text = text,
-                modifier = Modifier.padding(bottom = bottomPadding),
+                modifier = Modifier
+                    .padding(bottom = bottomPadding)
+                    .drawBehind {
+                        val bitmap = backgroundImage ?: return@drawBehind
+                        val layout = textLayout ?: return@drawBehind
+                        val inset = 1.dp.toPx()
+                        repeat(layout.lineCount) { line ->
+                            val destination = RectF(
+                                layout.getLineLeft(line),
+                                layout.getLineTop(line) + inset,
+                                layout.getLineRight(line),
+                                layout.getLineBottom(line) - inset,
+                            )
+                            if (destination.width() > 0f && destination.height() > 0f) {
+                                ReadHighlightImageRenderer.draw(
+                                    drawContext.canvas.nativeCanvas, bitmap, destination, imageStyle,
+                                )
+                            }
+                        }
+                    },
                 color = textColor,
                 fontSize = 16.sp,
                 lineHeight = 24.sp,
@@ -880,7 +936,7 @@ private fun AdvancedFileRow(
         ?.takeIf(String::isNotBlank)
         ?: stringResource(R.string.highlight_rule_no_file)
     Row(
-        modifier = Modifier.fillMaxWidth().height(54.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -894,27 +950,35 @@ private fun AdvancedFileRow(
             )
         }
         if (!path.isNullOrBlank()) {
-            Text(
-                text = stringResource(R.string.clear),
+            Box(
                 modifier = Modifier
-                    .height(40.dp)
+                    .heightIn(min = 40.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable(role = Role.Button, onClick = onClear)
-                    .padding(horizontal = 10.dp, vertical = 11.dp),
-                color = contentColor.copy(alpha = 0.70f),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.clear),
+                    color = contentColor.copy(alpha = 0.70f),
+                    fontSize = 13.sp,
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(role = Role.Button, onClick = onSelect)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stringResource(R.string.highlight_rule_choose_file),
+                color = accentColor,
                 fontSize = 13.sp,
             )
         }
-        Text(
-            text = stringResource(R.string.highlight_rule_choose_file),
-            modifier = Modifier
-                .height(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable(role = Role.Button, onClick = onSelect)
-                .padding(horizontal = 10.dp, vertical = 11.dp),
-            color = accentColor,
-            fontSize = 13.sp,
-        )
     }
 }
 

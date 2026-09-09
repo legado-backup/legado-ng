@@ -73,6 +73,7 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
     private var editorBackgroundCache: List<ReadStyleBackgroundUi>? = null
     private var backgroundColorPickerDialog: ComponentDialog? = null
     private var editingHighlightIndex: Int? = null
+    private var creatingPreset = false
     private var highlightDraft: ReadHighlightRule? = null
     private var highlightSelectionMode = HighlightSelectionMode.NONE
     private var selectedHighlightIds: Set<String> = emptySet()
@@ -174,8 +175,13 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
     private fun createActions() = ReadStyleActions(
         onPageSelected = ::navigateTo,
         onCreatePreset = {
-            ReadBookConfig.configList.add(ReadBookConfig.Config())
-            openEditor(ReadBookConfig.configList.lastIndex)
+            ReadBookConfig.configList.add(
+                ReadBookConfig.Config(
+                    readFloatingTransparency = 0,
+                    readFloatingPrimaryStrength = 100,
+                )
+            )
+            openEditor(ReadBookConfig.configList.lastIndex, isNew = true)
         },
         onSelectPreset = ::changeBgTextConfig,
         onImportPreset = {
@@ -352,6 +358,7 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         },
         onCreateHighlight = { openHighlightEditor() },
         onEditHighlight = { openHighlightEditor(it) },
+        onCopyHighlight = ::copyHighlightRule,
         onHighlightDraftChanged = { draft ->
             highlightDraft = draft
             updateEditorState { copy(highlightDraft = draft) }
@@ -454,6 +461,7 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
             highlightSelectionMode = highlightSelectionMode,
             selectedHighlightIds = selectedHighlightIds,
             editorMode = mode,
+            creatingPreset = creatingPreset,
             editorModeLabel = modeLabel,
             editorPreviewBackground = previewBackground,
             editorBackgrounds = if (page.isEditorPage()) loadEditorBackgrounds() else emptyList(),
@@ -492,7 +500,8 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
         notifyFloatingAppearanceChanged()
     }
 
-    private fun openEditor(index: Int) {
+    private fun openEditor(index: Int, isNew: Boolean = false) {
+        creatingPreset = isNew
         changeBgTextConfig(index)
         page = ReadStylePage.EDIT
         refreshUi()
@@ -1099,6 +1108,22 @@ class ReadStyleDialog : BaseComposeDialogFragment(),
             sampleText = getString(R.string.highlight_rule_default_sample),
             position = currentRules().size,
             textColor = ReadBookConfig.textAccentColor,
+        )
+        page = ReadStylePage.HIGHLIGHT_EDIT
+        refreshUi()
+    }
+
+    private fun copyHighlightRule(id: String) {
+        val rules = currentRules()
+        val source = rules.firstOrNull { it.id == id } ?: return
+        editingHighlightIndex = null
+        highlightDraft = source.copy(
+            id = UUID.randomUUID().toString(),
+            name = getString(
+                R.string.highlight_rule_copy_name,
+                source.name.ifBlank { getString(R.string.highlight_rule_default_name) },
+            ),
+            position = rules.size,
         )
         page = ReadStylePage.HIGHLIGHT_EDIT
         refreshUi()

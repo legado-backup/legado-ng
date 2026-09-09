@@ -2330,6 +2330,7 @@
     <string name="reading_presets">Reading presets</string>
     <string name="create_style">＋ New</string>
     <string name="read_style_edit_title">Edit preset</string>
+    <string name="read_style_create_title">New preset</string>
     <string name="read_style_restore_current">Restore current preset</string>
     <string name="read_style_restore_current_summary">Replace it with the built-in default</string>
     <string name="read_style_restore_unavailable">This preset has no default configuration</string>
@@ -2385,6 +2386,8 @@
     <string name="highlight_rule_preview">Preview</string>
     <string name="highlight_rule_invalid_pattern">Invalid regular expression; the rule was saved as disabled</string>
     <string name="highlight_rule_default_name">New rule</string>
+    <string name="highlight_rule_copy">Copy rule</string>
+    <string name="highlight_rule_copy_name">%1$s copy</string>
     <string name="highlight_rule_default_sample">斗之力，三段！</string>
     <string name="read_style_full_underline">Full-line underline</string>
     <string name="read_style_full_underline_title">Full-line underline</string>
