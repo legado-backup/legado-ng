@@ -396,6 +396,11 @@ class BookshelfManageActivity :
             context = this,
             onShare = { shareBookSources(books) },
             onSaveLocally = { saveBookSourcesLocally(books) },
+            onUpload = {
+                viewModel.saveBookSourcesToFile(books) { file, name ->
+                    showDialogFragment(BookSourceUploadDialog.create(file, name))
+                }
+            },
         ).show()
     }
 

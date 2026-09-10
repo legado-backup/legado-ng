@@ -21,6 +21,7 @@ import io.legado.app.model.CheckSourceTaskStatus
 import io.legado.app.model.CheckSourceTaskStore
 import io.legado.app.ui.association.ImportBookSourceDialog
 import io.legado.app.ui.book.manage.BookSourceExportSheet
+import io.legado.app.ui.book.manage.BookSourceUploadDialog
 import io.legado.app.ui.book.search.SearchActivity
 import io.legado.app.ui.book.source.debug.BookSourceDebugActivity
 import io.legado.app.ui.book.source.edit.BookSourceEditActivity
@@ -523,6 +524,11 @@ class BookSourceActivity :
             context = this,
             onShare = { shareSelection(selection) },
             onSaveLocally = { saveSelectionLocally(selection) },
+            onUpload = {
+                viewModel.saveToFile(selection) { file, name ->
+                    showDialogFragment(BookSourceUploadDialog.create(file, name))
+                }
+            },
         ).show()
     }
 

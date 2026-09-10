@@ -33,6 +33,7 @@ class BookSourceExportSheet(
     private val context: Context,
     private val onShare: () -> Unit,
     private val onSaveLocally: () -> Unit,
+    private val onUpload: () -> Unit,
 ) {
 
     private val dialog by lazy { BottomSheetDialog(context) }
@@ -74,6 +75,10 @@ class BookSourceExportSheet(
                 iconRes = R.drawable.ic_folder_open,
                 title = stringResource(R.string.export_book_source_save_folder),
             ),
+            NgCompactDrawerSelectionItem(
+                iconRes = R.drawable.ic_bookshelf_action_upload,
+                title = stringResource(R.string.export_book_source_upload_link),
+            ),
         )
         NgBottomDrawerSurface(
             modifier = Modifier.fillMaxWidth(),
@@ -92,7 +97,11 @@ class BookSourceExportSheet(
                     items = items,
                     onItemClick = { index ->
                         dialog.dismiss()
-                        if (index == 0) onShare() else onSaveLocally()
+                        when (index) {
+                            0 -> onShare()
+                            1 -> onSaveLocally()
+                            2 -> onUpload()
+                        }
                     },
                 )
             }
