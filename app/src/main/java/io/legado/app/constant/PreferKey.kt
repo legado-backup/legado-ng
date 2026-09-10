@@ -237,6 +237,7 @@ object PreferKey {
     const val defaultBookTreeUri = "defaultBookTreeUri"
     const val defaultFilePicker = "defaultFilePicker"
     const val tocUiUseReplace = "tocUiUseReplace"
+    const val bookmarkAutoExpandNotes = "bookmarkAutoExpandNotes"
     const val tocCountWords = "tocCountWords"
     const val enableReadRecord = "enableReadRecord"
     const val localBookImportSort = "localBookImportSort"

@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
+import io.legado.app.R
 import io.legado.app.base.VMBaseActivity
 import io.legado.app.constant.AppLog
 import io.legado.app.data.appDb
@@ -16,6 +17,7 @@ import io.legado.app.ui.design.theme.NgAppTheme
 import io.legado.app.utils.SelectDirectoryContract
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivityForBook
+import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.flow.catch
@@ -76,7 +78,6 @@ class AllBookmarkActivity : VMBaseActivity<ActivityAllBookmarkBinding, AllBookma
             }
             is AllBookmarkScreenAction.Open -> openBookmark(
                 bookmark = action.bookmark,
-                position = action.position,
             )
             is AllBookmarkScreenAction.Edit -> showDialogFragment(
                 BookmarkDialog(action.bookmark, action.position)
@@ -84,13 +85,13 @@ class AllBookmarkActivity : VMBaseActivity<ActivityAllBookmarkBinding, AllBookma
         }
     }
 
-    private fun openBookmark(bookmark: Bookmark, position: Int) {
+    private fun openBookmark(bookmark: Bookmark) {
         lifecycleScope.launch {
             val book = withContext(IO) {
                 appDb.bookDao.getBook(bookmark.bookName, bookmark.bookAuthor)
             }
             if (book == null) {
-                showDialogFragment(BookmarkDialog(bookmark, position))
+                toastOnUi(R.string.bookmark_book_not_found)
             } else {
                 startActivityForBook(book) {
                     putExtra("index", bookmark.chapterIndex)

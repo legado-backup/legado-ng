@@ -282,6 +282,8 @@
     <string name="export_book_source_save_folder">保存到本地文件夹</string>
     <string name="export_book_source_upload_link">上传并生成链接</string>
     <string name="export_book_source_copy_link">复制链接</string>
+    <string name="bookmark_auto_expand_notes">自动展开</string>
+    <string name="bookmark_book_not_found">未找到对应书籍</string>
     <string name="book_source_manage">书源管理</string>
     <string name="book_source_manage_desc">新建、导入、编辑或管理书源</string>
     <string name="rule_management">规则管理</string>

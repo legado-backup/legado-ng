@@ -44,7 +44,7 @@ class TextPageFactory(dataSource: DataSource) : PageFactory<TextPage>(dataSource
                 if ((currentChapter == null || isScroll) && nextChapter == null) {
                     return@with false
                 }
-                ReadBook.moveToNextChapter(upContent, false)
+                ReadBook.moveToNextChapter(upContent, false, restartReadAloud = !isScroll)
             } else {
                 if (pageIndex < 0 || currentChapter?.isLastIndexCurrent(pageIndex) == true) {
                     return@with false
@@ -66,7 +66,9 @@ class TextPageFactory(dataSource: DataSource) : PageFactory<TextPage>(dataSource
                 if (prevChapter != null && prevChapter?.isCompleted == false) {
                     return@with false
                 }
-                ReadBook.moveToPrevChapter(upContent, upContentInPlace = false)
+                ReadBook.moveToPrevChapter(
+                    upContent, upContentInPlace = false, restartReadAloud = !isScroll
+                )
             } else {
                 if (currentChapter == null) {
                     return@with false

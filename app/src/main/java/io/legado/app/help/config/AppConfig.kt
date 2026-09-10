@@ -841,6 +841,12 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefBoolean(PreferKey.tocUiUseReplace, value)
         }
 
+    var bookmarkAutoExpandNotes: Boolean
+        get() = appCtx.getPrefBoolean(PreferKey.bookmarkAutoExpandNotes, false)
+        set(value) {
+            appCtx.putPrefBoolean(PreferKey.bookmarkAutoExpandNotes, value)
+        }
+
     var tocCountWords: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.tocCountWords, true)
         set(value) {
@@ -875,7 +881,7 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
         }
 
     var contentSelectSpeakMod: Int
-        get() = appCtx.getPrefInt(PreferKey.contentSelectSpeakMod)
+        get() = appCtx.getPrefInt(PreferKey.contentSelectSpeakMod, 1)
         set(value) {
             appCtx.putPrefInt(PreferKey.contentSelectSpeakMod, value)
         }

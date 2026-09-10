@@ -438,7 +438,8 @@ object ReadBook : CoroutineScope by MainScope() {
     fun moveToPrevChapter(
         upContent: Boolean,
         toLast: Boolean = true,
-        upContentInPlace: Boolean = true
+        upContentInPlace: Boolean = true,
+        restartReadAloud: Boolean = true
     ): Boolean {
         if (durChapterIndex > 0) {
             durChapterPos = if (toLast) prevTextChapter?.lastReadLength ?: Int.MAX_VALUE else 0
@@ -456,7 +457,7 @@ object ReadBook : CoroutineScope by MainScope() {
             loadContent(durChapterIndex.minus(1), upContent, false)
             saveRead()
             callBack?.upMenuView()
-            curPageChanged()
+            curPageChanged(restartReadAloud = restartReadAloud)
             return true
         } else {
             return false
@@ -521,14 +522,12 @@ object ReadBook : CoroutineScope by MainScope() {
     ) {
         callBack?.pageChanged(pageChanged)
         curTextChapter?.let {
-            if (restartReadAloud && BaseReadAloudService.isRun && it.isCompleted) {
-                val scrollPageAnim = pageAnim() == 3
-                if (scrollPageAnim && pageChanged) {
-                    ReadAloud.pause(appCtx)
-                } else {
-                    val continuePlaying = BaseReadAloudService.isPlay()
-                    readAloud(continuePlaying)
-                }
+            // 滚动产生的页位置变化只更新阅读视图，不暂停或重定位朗读。
+            if (restartReadAloud && !(pageAnim() == 3 && pageChanged)
+                && BaseReadAloudService.isRun && it.isCompleted
+            ) {
+                val continuePlaying = BaseReadAloudService.isPlay()
+                readAloud(continuePlaying)
             }
         }
         upReadTime()

@@ -78,6 +78,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -525,6 +528,7 @@ private fun ReadCatalogPanel(
     var searchVisible by remember { mutableStateOf(false) }
     var showWordCount by remember { mutableStateOf(AppConfig.tocCountWords) }
     var useReplace by remember { mutableStateOf(AppConfig.tocUiUseReplace) }
+    var autoExpandNotes by remember { mutableStateOf(AppConfig.bookmarkAutoExpandNotes) }
     val menuState = remember { NgPopupToggleState() }
     var query by remember { mutableStateOf("") }
     var descending by remember { mutableStateOf(false) }
@@ -568,12 +572,24 @@ private fun ReadCatalogPanel(
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val pagerScope = rememberCoroutineScope()
     val selectedTab = tabs[pagerState.currentPage.coerceIn(tabs.indices)]
+    val bookmarkMenuLabel = stringResource(R.string.bookmark_auto_expand_notes)
+    val bookmarkMenuTextWidth = rememberTextMeasurer().measure(
+        text = bookmarkMenuLabel,
+        style = TextStyle(fontSize = 15.sp),
+        softWrap = false,
+        maxLines = 1,
+    ).size.width
+    val bookmarkMenuWidth = with(LocalDensity.current) {
+        // 两侧内边距24dp、选中图标18dp、间距10dp，再留8dp余量。
+        (bookmarkMenuTextWidth.toDp() + 60.dp).coerceAtLeast(160.dp)
+    }
     val nestedScrollInteropConnection = rememberNestedScrollInteropConnection()
     LaunchedEffect(query, chapterCount) {
         visibleChapterCount = if (query.isBlank()) chapterCount else 0
     }
     LaunchedEffect(pagerState.currentPage) {
         query = ""
+        menuState.onDismissRequest()
     }
 
     val content: @Composable () -> Unit = {
@@ -614,92 +630,106 @@ private fun ReadCatalogPanel(
                         dockColor = dockColor,
                         onSearch = { searchVisible = true },
                         menuExpanded = menuState.expanded,
+                        menuWidth = if (selectedTab == CatalogTab.Bookmarks) bookmarkMenuWidth else 136.dp,
                         onMenuClick = menuState::onAnchorClick,
                         onMenuDismiss = menuState::onDismissRequest,
                     ) {
-                        NgDrawerOptionMenuItem(
-                            label = stringResource(R.string.load_word_count),
-                            selected = showWordCount,
-                            contentColor = contentColor,
-                            accentColor = accentColor,
-                            onClick = {
-                                showWordCount = !showWordCount
-                                AppConfig.tocCountWords = showWordCount
-                            },
-                        )
-                        HorizontalDivider(
-                            Modifier.padding(horizontal = 12.dp), color = mutedColor.copy(alpha = 0.14f),
-                        )
-                        NgDrawerOptionMenuItem(
-                            label = stringResource(R.string.use_replace),
-                            selected = useReplace,
-                            contentColor = contentColor,
-                            accentColor = accentColor,
-                            onClick = {
-                                useReplace = !useReplace
-                                AppConfig.tocUiUseReplace = useReplace
-                            },
-                        )
-                        HorizontalDivider(
-                            Modifier.padding(horizontal = 12.dp), color = mutedColor.copy(alpha = 0.14f),
-                        )
-                        if (volumeIds.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().height(44.dp)
-                                    .clickable {
-                                        val rows = outline.orEmpty()
-                                        val anchor = visibleOutline?.getOrNull(chapterListState.firstVisibleItemIndex)?.index
-                                            ?: currentChapterIndex
-                                        val offset = chapterListState.firstVisibleItemScrollOffset
-                                        val nextCollapsed = if (allVolumesCollapsed) emptySet() else volumeIds
-                                        val nextRows = visibleCatalogRows(rows, nextCollapsed, descending)
-                                        collapsedVolumes = nextCollapsed
-                                        menuState.onDismissRequest()
-                                        pagerScope.launch {
-                                            withFrameNanos { }
-                                            chapterListState.scrollToItem(catalogVisiblePosition(nextRows, anchor), offset)
-                                        }
-                                    }.padding(horizontal = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    painterResource(if (allVolumesCollapsed) R.drawable.ic_expand_more else R.drawable.ic_expand_less),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp), tint = contentColor,
-                                )
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    stringResource(
-                                        if (allVolumesCollapsed) R.string.read_catalog_expand_volume
-                                        else R.string.read_catalog_collapse_volume
-                                    ),
-                                    color = contentColor, fontSize = 15.sp,
-                                )
-                            }
+                        if (selectedTab == CatalogTab.Bookmarks) {
+                            NgDrawerOptionMenuItem(
+                                label = stringResource(R.string.bookmark_auto_expand_notes),
+                                selected = autoExpandNotes,
+                                contentColor = contentColor,
+                                accentColor = accentColor,
+                                onClick = {
+                                    autoExpandNotes = !autoExpandNotes
+                                    AppConfig.bookmarkAutoExpandNotes = autoExpandNotes
+                                },
+                            )
+                        } else {
+                            NgDrawerOptionMenuItem(
+                                label = stringResource(R.string.load_word_count),
+                                selected = showWordCount,
+                                contentColor = contentColor,
+                                accentColor = accentColor,
+                                onClick = {
+                                    showWordCount = !showWordCount
+                                    AppConfig.tocCountWords = showWordCount
+                                },
+                            )
                             HorizontalDivider(
                                 Modifier.padding(horizontal = 12.dp), color = mutedColor.copy(alpha = 0.14f),
                             )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth().height(44.dp)
-                                .clickable(enabled = !refreshing) {
-                                    menuState.onDismissRequest()
-                                    onRefresh()
-                                }.padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (refreshing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp), color = accentColor, strokeWidth = 2.dp,
-                                )
-                            } else {
-                                Icon(
-                                    painterResource(R.drawable.ic_refresh_black_24dp), contentDescription = null,
-                                    modifier = Modifier.size(18.dp), tint = contentColor,
+                            NgDrawerOptionMenuItem(
+                                label = stringResource(R.string.use_replace),
+                                selected = useReplace,
+                                contentColor = contentColor,
+                                accentColor = accentColor,
+                                onClick = {
+                                    useReplace = !useReplace
+                                    AppConfig.tocUiUseReplace = useReplace
+                                },
+                            )
+                            HorizontalDivider(
+                                Modifier.padding(horizontal = 12.dp), color = mutedColor.copy(alpha = 0.14f),
+                            )
+                            if (volumeIds.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                                        .clickable {
+                                            val rows = outline.orEmpty()
+                                            val anchor = visibleOutline?.getOrNull(chapterListState.firstVisibleItemIndex)?.index
+                                                ?: currentChapterIndex
+                                            val offset = chapterListState.firstVisibleItemScrollOffset
+                                            val nextCollapsed = if (allVolumesCollapsed) emptySet() else volumeIds
+                                            val nextRows = visibleCatalogRows(rows, nextCollapsed, descending)
+                                            collapsedVolumes = nextCollapsed
+                                            menuState.onDismissRequest()
+                                            pagerScope.launch {
+                                                withFrameNanos { }
+                                                chapterListState.scrollToItem(catalogVisiblePosition(nextRows, anchor), offset)
+                                            }
+                                        }.padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        painterResource(if (allVolumesCollapsed) R.drawable.ic_expand_more else R.drawable.ic_expand_less),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp), tint = contentColor,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        stringResource(
+                                            if (allVolumesCollapsed) R.string.read_catalog_expand_volume
+                                            else R.string.read_catalog_collapse_volume
+                                        ),
+                                        color = contentColor, fontSize = 15.sp,
+                                    )
+                                }
+                                HorizontalDivider(
+                                    Modifier.padding(horizontal = 12.dp), color = mutedColor.copy(alpha = 0.14f),
                                 )
                             }
-                            Spacer(Modifier.width(10.dp))
-                            Text(stringResource(R.string.read_catalog_refresh), color = contentColor, fontSize = 15.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().height(44.dp)
+                                    .clickable(enabled = !refreshing) {
+                                        menuState.onDismissRequest()
+                                        onRefresh()
+                                    }.padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (refreshing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp), color = accentColor, strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Icon(
+                                        painterResource(R.drawable.ic_refresh_black_24dp), contentDescription = null,
+                                        modifier = Modifier.size(18.dp), tint = contentColor,
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Text(stringResource(R.string.read_catalog_refresh), color = contentColor, fontSize = 15.sp)
+                            }
                         }
                     }
                 }
@@ -846,6 +876,7 @@ private fun ReadCatalogPanel(
                     } else {
                         CatalogBookmarkList(
                             bookmarks = filteredBookmarks,
+                            autoExpandNotes = autoExpandNotes,
                             currentChapterIndex = currentChapterIndex,
                             listState = bookmarkListState,
                             listBackgroundColor = listBackgroundColor,
@@ -903,6 +934,7 @@ private fun CatalogTopActions(
     dockColor: Color,
     onSearch: () -> Unit,
     menuExpanded: Boolean,
+    menuWidth: Dp,
     onMenuClick: () -> Unit,
     onMenuDismiss: () -> Unit,
     menuContent: @Composable () -> Unit,
@@ -944,7 +976,7 @@ private fun CatalogTopActions(
             DropdownMenu(
                 expanded = menuExpanded,
                 onDismissRequest = onMenuDismiss,
-                modifier = Modifier.width(136.dp),
+                modifier = Modifier.width(menuWidth),
                 shape = RoundedCornerShape(18.dp),
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 4.dp,
@@ -1488,6 +1520,7 @@ private fun formatCatalogChapterTag(tag: String): String {
 @Composable
 private fun CatalogBookmarkList(
     bookmarks: List<Bookmark>,
+    autoExpandNotes: Boolean,
     currentChapterIndex: Int,
     listState: LazyListState,
     listBackgroundColor: Color,
@@ -1505,7 +1538,7 @@ private fun CatalogBookmarkList(
         bookmarks.indexOfLast { it.chapterIndex <= currentChapterIndex }.coerceAtLeast(0)
     }
     var pendingDeleteTime by remember { mutableStateOf<Long?>(null) }
-    val expandedNoteTimes = remember { mutableStateMapOf<Long, Boolean>() }
+    val expandedNoteTimes = remember(autoExpandNotes) { mutableStateMapOf<Long, Boolean>() }
     LaunchedEffect(bookmarks.isNotEmpty()) {
         listState.scrollToItem((currentPosition - 1).coerceAtLeast(0))
     }
@@ -1531,7 +1564,7 @@ private fun CatalogBookmarkList(
                 NgCatalogBookmarkCard(
                     bookmark = bookmark,
                     deleteConfirmationVisible = deleteConfirmationVisible,
-                    noteExpanded = expandedNoteTimes[bookmark.time] == true,
+                    noteExpanded = expandedNoteTimes[bookmark.time] ?: autoExpandNotes,
                     contentColor = contentColor,
                     mutedColor = mutedColor,
                     accentColor = accentColor,
@@ -1539,7 +1572,7 @@ private fun CatalogBookmarkList(
                     onLongClick = { pendingDeleteTime = bookmark.time },
                     onNoteToggle = {
                         expandedNoteTimes[bookmark.time] =
-                            expandedNoteTimes[bookmark.time] != true
+                            !(expandedNoteTimes[bookmark.time] ?: autoExpandNotes)
                     },
                     onDeleteCancel = { pendingDeleteTime = null },
                     onDeleteConfirm = {

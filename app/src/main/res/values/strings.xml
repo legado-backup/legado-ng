@@ -283,6 +283,8 @@
     <string name="export_book_source_save_folder">Save to a local folder</string>
     <string name="export_book_source_upload_link">Upload and get a link</string>
     <string name="export_book_source_copy_link">Copy link</string>
+    <string name="bookmark_auto_expand_notes">Auto-expand</string>
+    <string name="bookmark_book_not_found">Matching book not found</string>
     <string name="book_source_manage">Sources management</string>
     <string name="book_source_manage_desc">Create/Import/Edit/Manage Book sources</string>
     <string name="rule_management">Rule management</string>
